@@ -1,0 +1,21 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.javaee.MyPilot</id>
+
+    <name>MyPilot</name>
+
+    <vendor url="https://www.tongji.edu.cn">tongji</vendor>
+
+    <description>2025同济大学JavaEE课程项目, 支持rag与agent的ai coding插件</description>
+
+    <!-- Product and plugin compatibility requirements.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
+    <depends>com.intellij.modules.platform</depends>
+
+    <!-- Extension points defined by the plugin.
+         Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Register the chat tool window -->
+        // TODO: 插件同学
+    </extensions>
+</idea-plugin>
