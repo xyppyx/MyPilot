@@ -2,6 +2,7 @@ package com.javaee.mypilot.service;
 
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.javaee.mypilot.core.consts.Chat;
 import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatSession;
@@ -503,7 +504,7 @@ public final class RagService {
             }
 
             // 7. 获取历史对话的prompt（最近N条消息）
-            String historyPrompt = chatSession.buildPrompt(10); // 获取最近10条消息
+            String historyPrompt = chatSession.buildSessionContextPrompt(Chat.MAX_CHAT_TURN); // 获取最近10条消息
 
             // 8. 组合成总prompt: 历史对话 + RAG prompt
             String finalPrompt = historyPrompt + "\n\n" + ragPromptStr;

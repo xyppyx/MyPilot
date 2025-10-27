@@ -8,17 +8,17 @@ public class ChatMeta {
     private String context;       //背景上下文
     private String decision;      //关键决策
     private String userGoal;      //用户意图
-    private String results;      //执行结果
+    private String results;       //执行结果
     private String unsolved;      //未解决问题
-    private String plan;      //后续计划
+    private String plan;          //后续计划
 
     public String toString() {
-        return "Context: " + context + "\n" +
-               "Decision: " + decision + "\n" +
-               "User Goal: " + userGoal + "\n" +
-               "Results: " + results + "\n" +
-               "Unsolved: " + unsolved + "\n" +
-               "Plan: " + plan + "\n";
+        return "背景上下文: " + context + "\n" +
+               "关键决策: " + decision + "\n" +
+               "用户意图: " + userGoal + "\n" +
+               "执行结果: " + results + "\n" +
+               "未解决问题: " + unsolved + "\n" +
+               "后续计划: " + plan + "\n";
     }
 
     // Getter & Setter

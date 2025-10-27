@@ -24,4 +24,7 @@ public class Chat {
 
     // 为新消息保留的最小空间
     public static final Integer MIN_TOKENS_RESERVE = 500;
+
+    // 对话上下文论数限制
+    public static final Integer MAX_CHAT_TURN = 5;
 }

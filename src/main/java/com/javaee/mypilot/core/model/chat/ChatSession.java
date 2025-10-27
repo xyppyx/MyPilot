@@ -64,19 +64,39 @@ public class ChatSession {
     }
 
     /**
-     * 构建prompt string
-     * @param count 包含的消息数量
+     * 构建对话上下文string
+     * @param count 包含的最后count轮对话
      * @return prompt字符串
      */
-    public String buildPrompt(int count) {
+    public String buildSessionContextPrompt(int count) {
         StringBuilder prompt = new StringBuilder();
         if (meta != null) {
+            prompt.append("对话历史摘要:\n");
             prompt.append(meta.toString()).append("\n");
         }
 
         if (messages != null) {
-            for (int i = Math.max(offset, messages.size() - count); i < messages.size(); i++) {
-                prompt.append(messages.get(i).toString()).append("\n");
+            prompt.append("对话历史:\n");
+            int start = Math.max(0, messages.size() - count * 2);
+            for (int i = start; i < messages.size(); i++) {
+                ChatMessage msg = messages.get(i);
+                String role = msg.isUserMessage() ? "用户" : "助手";
+                prompt.append(role).append(": ").append(msg.getContent()).append("\n");
+            }
+        }
+        return prompt.toString().trim();
+    }
+
+    /**
+     * 构建代码上下文string
+     * @return 代码上下文字符串
+     */
+    public String buildCodeContextPrompt() {
+        StringBuilder prompt = new StringBuilder();
+        if (codeContexts != null && !codeContexts.isEmpty()) {
+            prompt.append("代码上下文:\n");
+            for (CodeContext ctx : codeContexts) {
+                prompt.append(ctx.formatContext()).append("\n---\n");
             }
         }
         return prompt.toString().trim();
