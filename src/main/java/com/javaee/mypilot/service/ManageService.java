@@ -65,14 +65,21 @@ public final class ManageService {
             sessionId = chatService.startNewChatSession();
         }
 
-        // 调用 ChatService，传递代码引用
-        ChatMessage response = chatService.handleRequest(sessionId, chatOpt, request, codeReferences);
-        
-        // 通知 View 层显示响应
-        support.firePropertyChange("assistantMessage", null, response);
-        
-        // 请求完成后清空代码引用
-        clearCodeReferences();
+        // 异步调用 ChatService，传递代码引用
+        chatService.handleRequestAsync(sessionId, chatOpt, request, codeReferences)
+            .thenAccept(response -> {
+                // 通知 View 层显示响应
+                support.firePropertyChange("assistantMessage", null, response);
+                
+                // 请求完成后清空代码引用
+                clearCodeReferences();
+            })
+            .exceptionally(throwable -> {
+                // 错误处理
+                support.firePropertyChange("error", null, "请求失败: " + throwable.getMessage());
+                clearCodeReferences();
+                return null;
+            });
     }
     
     /**
