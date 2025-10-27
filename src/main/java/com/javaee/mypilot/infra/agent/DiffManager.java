@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project;
 /**
  * 代码差异管理器，负责处理代码差异的计算和展示。
  * TODO: idea
+ * TODO: 使用idea diff api与idea platform 异步任务执行器
  */
 @Service(Service.Level.PROJECT)
 public final class DiffManager {

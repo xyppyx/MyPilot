@@ -9,6 +9,8 @@ import com.javaee.mypilot.core.model.chat.CodeReference;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
@@ -26,6 +28,16 @@ public final class PsiHandler {
 
     public PsiHandler(Project project) {
         this.project = project;
+    }
+
+    /**
+     * TODO: 改为idea platform 异步任务执行器
+     * 异步根据代码引用列表，提取对应的代码上下文信息
+     * @param codeReferences 代码引用列表
+     * @return 包含代码上下文列表的异步任务
+     */
+    public CompletableFuture<List<CodeContext>> fetchCodeContextAsync(List<CodeReference> codeReferences) {
+        return CompletableFuture.supplyAsync(() -> fetchCodeContext(codeReferences));
     }
 
     /**

@@ -74,7 +74,7 @@ public final class ChatService {
      */
     public CompletableFuture<ChatMessage> handleRequestAsync(String sessionId, ChatOpt chatOpt, String message, List<CodeReference> codeReferences) {
 
-        // 步骤一: 获取聊天会话,添加用户消息,估算token消耗量
+        // 步骤一: 获取聊天会话,添加用户消息,估算并更新token消耗量
         CompletableFuture<ChatSession> setupFuture = CompletableFuture.supplyAsync(() -> {
 
             // 1. 获取聊天会话 (chatRepo.getChatSession 如果是耗时I/O，最好单独包装或使用异步API)
@@ -114,10 +114,7 @@ public final class ChatService {
             }
 
             // 任务 2B: 获取代码上下文 (Code Context)
-            // 这是一个独立于压缩的异步任务，可以并发执行
-            CompletableFuture<List<CodeContext>> codeContextFuture = CompletableFuture.supplyAsync(() ->
-                    psiHandler.fetchCodeContext(codeReferences)
-            );
+            CompletableFuture<List<CodeContext>> codeContextFuture = psiHandler.fetchCodeContextAsync(codeReferences);
 
             // 等待两个任务完成，然后更新 chatSession 并返回它
             return compressionFuture.thenCombine(codeContextFuture, (v, codeContexts) -> {
@@ -142,7 +139,6 @@ public final class ChatService {
 
             // 任务 3B: 善后和保存
             return responseFuture.thenApply(responseMessage -> {
-                // 副作用：更新会话状态并保存 (最好确保 chatRepo.saveChatSession 快速或异步)
                 chatSession.addMessage(responseMessage);
                 chatRepo.saveChatSession(chatSession);
                 return responseMessage;
