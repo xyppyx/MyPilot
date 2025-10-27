@@ -33,6 +33,24 @@ dependencies {
     
     // Additional dependencies for UI components
     implementation("org.jetbrains:annotations:24.0.1")
+
+    // RAG dependencies
+    // Apache POI for PPT processing
+    implementation("org.apache.poi:poi:5.2.5")
+    implementation("org.apache.poi:poi-ooxml:5.2.5")
+
+    // Apache PDFBox for PDF processing
+    implementation("org.apache.pdfbox:pdfbox:2.0.30")
+
+    // Lucene for vector search
+    implementation("org.apache.lucene:lucene-core:9.9.2")
+    implementation("org.apache.lucene:lucene-analysis-common:9.9.2")
+
+    // OkHttp for API calls
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Gson for JSON parsing
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 
 intellijPlatform {

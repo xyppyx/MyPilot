@@ -1,18 +1,18 @@
 package com.javaee.mypilot.infra.rag;
 
-import com.intellij.openapi.components.Service;
-import com.intellij.openapi.project.Project;
+import com.javaee.mypilot.core.model.rag.DocumentChunk;
 
-/**
- * 文件处理器，负责对文件进行预处理、分割等操作，以便后续的知识索引和检索。
- * TODO: rag
- */
-@Service(Service.Level.PROJECT)
-public final class DocumentProcessor {
+import java.io.File;
+import java.util.List;
 
-    private final Project project;
+public interface DocumentProcessor {
+    /**
+     * 解析课程文档，分块并生成嵌入
+     *
+     * @param file 课程材料文件（如PPT）
+     * @return 分块后的知识列表
+     */
+    List<DocumentChunk> process(File file);
 
-    public DocumentProcessor(com.intellij.openapi.project.Project project) {
-        this.project = project;
-    }
+
 }

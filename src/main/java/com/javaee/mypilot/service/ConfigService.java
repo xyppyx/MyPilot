@@ -38,6 +38,16 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public List<LlmProfile> llmProfiles = new ArrayList<>();
         public String ragSearchPath;
         public String defaultProfileName;
+        public String knowledgeBasePath;
+        public String courseMaterialPath; // 课程材料文件夹路径（PPT/PDF）
+
+        // RAG Embedding 配置
+        public String embeddingServiceType = "DashScope"; // DashScope, Zhipu, Local
+        public String embeddingApiKey = "sk-12ffff37c0834dfd8d227eda0b809f91";
+
+        // RAG 检索配置
+        public int retrievalTopK = 5;
+        public double relevanceThreshold = 0.7;
     }
 
     private Config myConfig = new Config();
@@ -71,5 +81,53 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     public String getRagSearchPath() {
         return myConfig.ragSearchPath;
+    }
+
+    public void setKnowledgeBasePath(String path) {
+        myConfig.knowledgeBasePath = path;
+    }
+
+    public String getKnowledgeBasePath() {
+        return myConfig.knowledgeBasePath;
+    }
+
+    public void setEmbeddingServiceType(String type) {
+        myConfig.embeddingServiceType = type;
+    }
+
+    public String getEmbeddingServiceType() {
+        return myConfig.embeddingServiceType;
+    }
+
+    public void setEmbeddingApiKey(String apiKey) {
+        myConfig.embeddingApiKey = apiKey;
+    }
+
+    public String getEmbeddingApiKey() {
+        return myConfig.embeddingApiKey;
+    }
+
+    public void setRetrievalTopK(int topK) {
+        myConfig.retrievalTopK = topK;
+    }
+
+    public int getRetrievalTopK() {
+        return myConfig.retrievalTopK;
+    }
+
+    public void setRelevanceThreshold(double threshold) {
+        myConfig.relevanceThreshold = threshold;
+    }
+
+    public double getRelevanceThreshold() {
+        return myConfig.relevanceThreshold;
+    }
+
+    public void setCourseMaterialPath(String path) {
+        myConfig.courseMaterialPath = path;
+    }
+
+    public String getCourseMaterialPath() {
+        return myConfig.courseMaterialPath;
     }
 }

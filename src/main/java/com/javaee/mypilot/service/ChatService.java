@@ -24,7 +24,7 @@ public final class ChatService {
     private final Project project;
     private final HistoryCompressor historyCompressor;
     private final TokenEvaluator tokenEvaluator;
-    private final RagService ragService;
+    private final RagService RagService;
     private final AgentService agentService;
     private final IChatRepo chatRepo;
 
@@ -32,7 +32,7 @@ public final class ChatService {
         this.project = project;
         this.historyCompressor = project.getService(HistoryCompressor.class);
         this.tokenEvaluator = project.getService(TokenEvaluator.class);
-        this.ragService = project.getService(RagService.class);
+        this.RagService = project.getService(RagService.class);
         this.agentService = project.getService(AgentService.class);
         this.chatRepo = project.getService(InMemChatRepo.class);
     }
@@ -94,7 +94,7 @@ public final class ChatService {
 
         // 根据聊天选项调用相应的服务处理请求
         ChatMessage responseMessage = switch (chatOpt) {
-            case ASK -> ragService.handleRequest(chatSession);
+            case ASK -> RagService.handleRequest(chatSession);
             case AGENT -> agentService.handleRequest(chatSession);
             default -> throw new IllegalArgumentException("Unsupported chat option: " + chatOpt);
         };
