@@ -13,6 +13,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * 大语言模型客户端，负责与大语言模型进行交互，发送请求并接收响应。
@@ -24,6 +27,7 @@ public final class LlmClient {
     private final Project project;
     private final ConfigService configService;
     private final Gson gson;
+    private final Executor ioExecutor = Executors.newCachedThreadPool();
 
     public LlmClient(Project project) {
         this.project = project;
@@ -37,8 +41,14 @@ public final class LlmClient {
      * @return 包含生成的回答文本的异步任务
      * @throws Exception 如果调用失败
      */
-    public String chatAsync(String prompt) throws Exception {
-        return chat(prompt);
+    public CompletableFuture<String> chatAsync(String prompt) throws Exception {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return chat(prompt);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }, ioExecutor);
     }
 
     /**
