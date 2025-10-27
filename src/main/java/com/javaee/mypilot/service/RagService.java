@@ -8,7 +8,10 @@ import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.rag.Answer;
 import com.javaee.mypilot.core.model.rag.Citation;
 import com.javaee.mypilot.core.model.rag.DocumentChunk;
+import com.javaee.mypilot.infra.api.LlmClient;
+import com.javaee.mypilot.infra.api.RagPrompt;
 import com.javaee.mypilot.infra.rag.DocumentProcessor;
+import com.javaee.mypilot.infra.rag.PDFDocumentProcessor;
 import com.javaee.mypilot.infra.rag.PPTDocumentProcessor;
 import com.javaee.mypilot.infra.rag.Retriever;
 import com.javaee.mypilot.infra.rag.embedding.DashScopeEmbeddingService;
@@ -32,6 +35,7 @@ import java.util.stream.Collectors;
 @Service(Service.Level.PROJECT)
 public final class RagService {
 
+    private final Project project;
     private final ConfigService configService;
 
     // RAG 组件
@@ -40,10 +44,13 @@ public final class RagService {
     private Retriever retriever;
     private DocumentProcessor pptDocumentProcessor;
     private DocumentProcessor pdfDocumentProcessor;
+    private RagPrompt ragPrompt;
+    private LlmClient llmClient;
 
     private boolean initialized = false;
 
     public RagService(@NotNull Project project) {
+        this.project = project;
         this.configService = ConfigService.getInstance(project);
         System.out.println("RagService initialized - call initialize() to start RAG components");
     }
@@ -72,11 +79,18 @@ public final class RagService {
 
             // 4. 初始化文档处理器
             this.pptDocumentProcessor = new PPTDocumentProcessor(embeddingService);
+            this.pdfDocumentProcessor = new PDFDocumentProcessor(embeddingService);
+
+            // 5. 初始化 RagPrompt
+            this.ragPrompt = new RagPrompt();
+
+            // 6. 初始化 LLM 客户端
+            this.llmClient = project.getService(LlmClient.class);
 
             this.initialized = true;
             System.out.println("RagService components initialized successfully");
 
-            // 5. 自动从PPT文件夹加载知识库（如果知识库为空）
+            // 7. 自动从PPT文件夹加载知识库（如果知识库为空）
             autoLoadKnowledgeBase();
         } catch (Exception e) {
             System.err.println("Failed to initialize RAG components: " + e.getMessage());
@@ -424,8 +438,128 @@ public final class RagService {
         }
     }
 
+    /**
+     * 处理聊天会话请求，结合RAG知识库和代码上下文
+     * @param chatSession 聊天会话，包含历史对话和可能的代码上下文
+     * @return 生成的AI回复消息
+     */
     public ChatMessage handleRequest(ChatSession chatSession) {
-        return null;
-        //TODO: implement later
+        try {
+            // 确保RAG系统已初始化
+            if (!initialized) {
+                initialize();
+            }
+
+            // 1. 获取最后一条用户消息作为问题
+            ChatMessage lastMessage = chatSession.getLastMessage();
+            if (lastMessage == null || !lastMessage.isUserMessage()) {
+                return createErrorMessage("无效的请求：找不到用户问题");
+            }
+            String question = lastMessage.getContent();
+
+            // 2. 检查是否有代码上下文
+            List<CodeContext> codeContexts = chatSession.getCodeContexts();
+            boolean hasCodeContext = codeContexts != null && !codeContexts.isEmpty();
+            String codeContextStr = null;
+
+            if (hasCodeContext) {
+                // 合并所有代码上下文
+                StringBuilder codeBuilder = new StringBuilder();
+                for (CodeContext ctx : codeContexts) {
+                    if (ctx.getSelectedCode() != null) {
+                        if (ctx.getFileName() != null) {
+                            codeBuilder.append("// 文件: ").append(ctx.getFileName()).append("\n");
+                        }
+                        codeBuilder.append(ctx.getSelectedCode()).append("\n\n");
+                    }
+                }
+                codeContextStr = codeBuilder.toString();
+            }
+
+            // 3. 构建查询（结合问题和代码上下文）
+            String query = hasCodeContext ? question + " " + codeContextStr : question;
+
+            // 4. 从知识库检索相关文档
+            List<DocumentChunk> relevantChunks = retrieveRelevantChunks(query, configService.getRetrievalTopK());
+
+            // 5. 判断是否找到相关知识
+            boolean hasRelevantKnowledge = !relevantChunks.isEmpty() &&
+                    relevantChunks.get(0).getSimilarity() >= configService.getRelevanceThreshold();
+
+            // 6. 构建最终的prompt
+            String ragPromptStr;
+            if (hasCodeContext && hasRelevantKnowledge) {
+                // 有代码上下文 + 有知识库材料
+                ragPromptStr = ragPrompt.buildPromptWithCodeContext(question, codeContextStr, relevantChunks);
+            } else if (hasCodeContext && !hasRelevantKnowledge) {
+                // 有代码上下文 + 无知识库材料
+                ragPromptStr = ragPrompt.buildPromptWithCodeContextOnly(question, codeContextStr);
+            } else if (!hasCodeContext && hasRelevantKnowledge) {
+                // 无代码上下文 + 有知识库材料
+                ragPromptStr = ragPrompt.buildPromptWithContext(question, relevantChunks);
+            } else {
+                // 无代码上下文 + 无知识库材料
+                ragPromptStr = ragPrompt.buildGeneralPrompt(question);
+            }
+
+            // 7. 获取历史对话的prompt（最近N条消息）
+            String historyPrompt = chatSession.buildPrompt(10); // 获取最近10条消息
+
+            // 8. 组合成总prompt: 历史对话 + RAG prompt
+            String finalPrompt = historyPrompt + "\n\n" + ragPromptStr;
+
+            // 9. 调用 LLM API 生成回答
+            StringBuilder responseContent = new StringBuilder();
+
+            try {
+                String llmResponse = llmClient.chat(finalPrompt);
+                responseContent.append(llmResponse);
+            } catch (Exception llmError) {
+                System.err.println("调用 LLM API 失败: " + llmError.getMessage());
+                llmError.printStackTrace();
+                // 如果 API 调用失败，返回错误信息
+                responseContent.append("抱歉，调用 AI 模型时出现错误：").append(llmError.getMessage());
+                responseContent.append("\n\n请检查 API Key 和网络连接是否正常。");
+            }
+
+
+            // 10. 添加知识来源标注
+            responseContent.append("\n---\n");
+            if (hasRelevantKnowledge) {
+                responseContent.append("📚 知识来源：知识库材料\n");
+                for (int i = 0; i < Math.min(3, relevantChunks.size()); i++) {
+                    DocumentChunk chunk = relevantChunks.get(i);
+                    responseContent.append(String.format("  [%d] %s (第%d页) - 相似度: %.2f\n",
+                            i + 1, chunk.getSource(), chunk.getPageNumber(), chunk.getSimilarity()));
+                }
+            } else {
+                responseContent.append("💡 知识来源：基于大模型的通用知识\n");
+                responseContent.append("  注意：知识库中未找到相关的课程材料，本回答基于AI的通用知识。\n");
+            }
+
+            if (hasCodeContext) {
+                responseContent.append("💻 已结合您提供的代码上下文\n");
+            }
+
+            // 11. 创建AI回复消息
+            ChatMessage response = new ChatMessage(ChatMessage.Type.ASSISTANT, responseContent.toString());
+
+            System.out.println("RAG请求处理完成 - 知识库匹配: " + hasRelevantKnowledge +
+                             ", 代码上下文: " + hasCodeContext);
+
+            return response;
+
+        } catch (Exception e) {
+            System.err.println("处理RAG请求时出错: " + e.getMessage());
+            e.printStackTrace();
+            return createErrorMessage("处理请求时发生错误: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 创建错误消息
+     */
+    private ChatMessage createErrorMessage(String errorMsg) {
+        return new ChatMessage(ChatMessage.Type.ASSISTANT, "❌ " + errorMsg);
     }
 }

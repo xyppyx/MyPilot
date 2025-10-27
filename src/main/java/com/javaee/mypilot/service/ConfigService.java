@@ -48,6 +48,12 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         // RAG 检索配置
         public int retrievalTopK = 5;
         public double relevanceThreshold = 0.7;
+
+        // LLM API 配置
+        public String llmApiType = "DeepSeek"; // DeepSeek, OpenAI, QianWen, ZhiPu, etc.
+        public String llmApiKey = "sk-7e94674b9a784bf29b85af0ebc92b9d8";
+        public String llmApiEndpoint = "https://api.deepseek.com/v1/chat/completions"; // DeepSeek API
+        public String llmModel = "deepseek-chat"; // deepseek-chat, gpt-3.5-turbo, qwen-plus, glm-4, etc.
     }
 
     private Config myConfig = new Config();
@@ -129,5 +135,37 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     public String getCourseMaterialPath() {
         return myConfig.courseMaterialPath;
+    }
+
+    public String getLlmApiType() {
+        return myConfig.llmApiType;
+    }
+
+    public void setLlmApiType(String type) {
+        myConfig.llmApiType = type;
+    }
+
+    public String getLlmApiKey() {
+        return myConfig.llmApiKey;
+    }
+
+    public void setLlmApiKey(String apiKey) {
+        myConfig.llmApiKey = apiKey;
+    }
+
+    public String getLlmApiEndpoint() {
+        return myConfig.llmApiEndpoint;
+    }
+
+    public void setLlmApiEndpoint(String endpoint) {
+        myConfig.llmApiEndpoint = endpoint;
+    }
+
+    public String getLlmModel() {
+        return myConfig.llmModel;
+    }
+
+    public void setLlmModel(String model) {
+        myConfig.llmModel = model;
     }
 }
