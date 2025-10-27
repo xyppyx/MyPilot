@@ -66,6 +66,14 @@ public class CodeContext {
         this.surroundingCode = surroundingCode;
     }
 
+    public CodeReference getSourceReference() {
+        return sourceReference;
+    }
+
+    public void setSourceReference(CodeReference sourceReference) {
+        this.sourceReference = sourceReference;
+    }
+
     /**
      * 格式化代码上下文为可读字符串
      */

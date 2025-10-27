@@ -4,7 +4,7 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.enums.ChatOpt;
 import com.javaee.mypilot.core.model.chat.CodeContext;
-import com.javaee.mypilot.infra.agent.PsiManager;
+import com.javaee.mypilot.infra.agent.PsiHandler;
 import com.javaee.mypilot.infra.chat.HistoryCompressor;
 import com.javaee.mypilot.infra.chat.TokenEvaluator;
 import com.javaee.mypilot.infra.repo.IChatRepo;
@@ -26,7 +26,7 @@ public final class ChatService {
     private final TokenEvaluator tokenEvaluator;
     private final RagService RagService;
     private final AgentService agentService;
-    private final PsiManager psiManager;
+    private final PsiHandler psiHandler;
     private final IChatRepo chatRepo;
 
     public ChatService(@NotNull Project project) {
@@ -35,7 +35,7 @@ public final class ChatService {
         this.tokenEvaluator = project.getService(TokenEvaluator.class);
         this.RagService = project.getService(RagService.class);
         this.agentService = project.getService(AgentService.class);
-        this.psiManager = project.getService(PsiManager.class);
+        this.psiHandler = project.getService(PsiHandler.class);
         this.chatRepo = project.getService(InMemChatRepo.class);
     }
 
@@ -89,13 +89,13 @@ public final class ChatService {
 
         // 判断是否压缩历史记录
         if (tokenEvaluator.isThresholdReached(chatSession.getTokenUsage())) {
-            ChatMeta compressedHistory = historyCompressor.compress(chatSession.getMessages());
+            ChatMeta compressedHistory = historyCompressor.compress(chatSession);
             chatSession.setMeta(compressedHistory);
             chatSession.setOffset(chatSession.getMessageCount());
         }
 
         // 获取代码上下文
-        List<CodeContext> codeContexts = psiManager.fetchCodeContext(codeReferences);
+        List<CodeContext> codeContexts = psiHandler.fetchCodeContext(codeReferences);
         chatSession.setCodeContexts(codeContexts);
 
         // 根据聊天选项调用相应的服务处理请求

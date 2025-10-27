@@ -4,6 +4,7 @@ import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatMeta;
+import com.javaee.mypilot.core.model.chat.ChatSession;
 
 import java.util.List;
 
@@ -20,7 +21,12 @@ public final class HistoryCompressor {
         this.project = project;
     }
 
-    public ChatMeta compress(List<ChatMessage> messages) {
+    /**
+     * 压缩聊天记录，生成聊天元数据
+     * @param chatSession 聊天会话
+     * @return 聊天元数据(ChatMeta)
+     */
+    public ChatMeta compress(ChatSession chatSession) {
         // TODO: agent
         return null;
     }
