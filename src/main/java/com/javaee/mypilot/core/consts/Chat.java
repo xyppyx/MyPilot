@@ -16,8 +16,8 @@ public class Chat {
     // 默认对话标题
     public static final String DEFAULT_TITLE = "新对话";
 
-    // 消息令牌限制(8192 tokens)
-    public static final Integer MAX_TOKENS = 8192;
+    // 消息令牌限制(4000 tokens)
+    public static final Integer MAX_TOKENS = 4000;
 
     // 消息压缩阈值
     public static final Double COMPRESSION_THRESHOLD = 0.90;
