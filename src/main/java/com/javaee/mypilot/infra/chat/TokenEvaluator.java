@@ -5,6 +5,7 @@ import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 /**
@@ -24,7 +25,7 @@ public final class TokenEvaluator {
     }
 
     /**
-     * 估算单个字符串的token数量
+     * 估算字符串的token数量
      * @param text 输入字符串
      * @return 估算的token数量
      */
@@ -65,17 +66,6 @@ public final class TokenEvaluator {
         return texts.stream()
                 .mapToInt(this::estimateTokens)
                 .sum();
-    }
-
-    /**
-     * 评估token使用量是否达到阈值
-     * @param texts 字符串列表
-     * @return 是否达到阈值
-     */
-    public boolean isThresholdReached(List<String> texts) {
-        int currentTokens = estimateTokensForList(texts);
-        double usagePercentage = (double) currentTokens / Chat.MAX_TOKENS;
-        return usagePercentage >= Chat.COMPRESSION_THRESHOLD;
     }
 
     /**

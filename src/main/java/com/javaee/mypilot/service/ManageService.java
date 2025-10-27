@@ -14,6 +14,7 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * 会话管理器
@@ -65,7 +66,6 @@ public final class ManageService {
             sessionId = chatService.startNewChatSession();
         }
 
-        ChatMessage response = chatService.handleRequest(sessionId, chatOpt, request, codeReferences);
-
+        CompletableFuture<ChatMessage> response = chatService.handleRequestAsync(sessionId, chatOpt, request, codeReferences);
     }
 }

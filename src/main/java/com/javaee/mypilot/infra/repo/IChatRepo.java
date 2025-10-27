@@ -27,4 +27,10 @@ public interface IChatRepo {
      * @return 聊天记录列表
      */
     List<ChatSession> getAllChatSessions();
+
+    /**
+     * 获取所有聊天记录标题
+     * @return 聊天记录标题列表
+     */
+    List<String> getAllChatSessionTitles();
 }

@@ -55,4 +55,15 @@ public final class InMemChatRepo implements IChatRepo{
 
         return sessions.values().stream().toList();
     }
+
+    /**
+     * 获取所有聊天记录标题
+     * @return 聊天记录标题列表
+     */
+    @Override
+    public List<String> getAllChatSessionTitles() {
+        return sessions.values().stream()
+                .map(ChatSession::getTitle)
+                .toList();
+    }
 }
