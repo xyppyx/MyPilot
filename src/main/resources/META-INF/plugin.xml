@@ -11,11 +11,48 @@
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.java</depends>
 
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
     <extensions defaultExtensionNs="com.intellij">
         <!-- Register the chat tool window -->
-        // TODO: 插件同学
+        <toolWindow id="MyPilot"
+                    factoryClass="com.javaee.mypilot.view.ui.ToolWindowFactory"
+                    anchor="right"
+                    icon="/META-INF/teachingAssistant.svg"/>
+        
+        <!-- Register settings page: Settings → Tools → MyPilot -->
+        <projectConfigurable 
+                parentId="tools"
+                instance="com.javaee.mypilot.view.ui.MyPilotConfigurable"
+                id="settings.mypilot"
+                displayName="MyPilot"
+                nonDefaultProject="true"/>
     </extensions>
+    
+    <!-- Actions -->
+    <actions>
+        <!-- 右键菜单组：MyPilot -->
+        <group id="MyPilot.EditorContextMenu" text="MyPilot" popup="true">
+            <!-- 1. 打开 MyPilot 聊天窗口 -->
+            <action id="MyPilot.OpenChatWindow"
+                    class="com.javaee.mypilot.view.action.OpenChatWindowAction"
+                    text="打开聊天窗口"
+                    description="打开 MyPilot 聊天工具窗口">
+            </action>
+            
+            <!-- 2. 添加代码引用到聊天 -->
+            <action id="MyPilot.AddCodeReference"
+                    class="com.javaee.mypilot.view.action.AddCodeReferenceAction"
+                    text="添加代码引用"
+                    description="将选中的代码添加到 MyPilot 聊天引用区">
+                <!-- 快捷键: Alt+M -->
+                <keyboard-shortcut keymap="$default" first-keystroke="alt M"/>
+            </action>
+            
+            <!-- 添加到编辑器右键菜单 -->
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </group>
+    </actions>
 </idea-plugin>
