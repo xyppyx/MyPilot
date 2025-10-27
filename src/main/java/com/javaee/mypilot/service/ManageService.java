@@ -5,12 +5,15 @@ import com.intellij.openapi.components.Service;
 
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.enums.ChatOpt;
-import com.javaee.mypilot.core.model.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
+import com.javaee.mypilot.core.model.chat.CodeReference;
 import org.jetbrains.annotations.NotNull;
 
 import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 会话管理器
@@ -27,7 +30,7 @@ public final class ManageService {
 
     private ChatOpt currentOpt = ChatOpt.ASK;
     private String sessionId = null;
-    private CodeContext codeContext = new CodeContext();
+    private List<CodeReference> codeReferences = new ArrayList<>();
 
     public ManageService(@NotNull Project project) {
         this.project = project;
@@ -56,13 +59,13 @@ public final class ManageService {
      * 处理请求
      * @param request 用户请求
      */
-    public void handleRequest(String request, ChatOpt chatOpt ,CodeContext codeContext) {
+    public void handleRequest(String request, ChatOpt chatOpt, CodeContext codeContext) {
 
         if (sessionId == null) {
             sessionId = chatService.startNewChatSession();
         }
 
-        ChatMessage response = chatService.handleRequest(sessionId, chatOpt, request, codeContext);
+        ChatMessage response = chatService.handleRequest(sessionId, chatOpt, request, codeReferences);
 
     }
 }

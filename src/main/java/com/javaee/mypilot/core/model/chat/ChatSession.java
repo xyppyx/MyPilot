@@ -14,6 +14,7 @@ public class ChatSession {
     private String id;                          // 会话唯一标识, 36位UUID
     private String title;                       // 会话标题
     private List<ChatMessage> messages;         // 消息列表
+    private List<CodeContext> codeContexts;     // 最新对话的代码上下文
     private Integer offset;                     // 消息偏移量(对话压缩后, 新增消息的起始位置)
     private ChatMeta meta;                      // 会话元信息
     private Integer tokenUsage;                 // token使用情况
@@ -64,16 +65,17 @@ public class ChatSession {
 
     /**
      * 构建prompt string
+     * @param count 包含的消息数量
      * @return prompt字符串
      */
-    public String buildPrompt() {
+    public String buildPrompt(int count) {
         StringBuilder prompt = new StringBuilder();
         if (meta != null) {
             prompt.append(meta.toString()).append("\n");
         }
 
         if (messages != null) {
-            for (int i = offset; i < messages.size(); i++) {
+            for (int i = Math.max(offset, messages.size() - count); i < messages.size(); i++) {
                 prompt.append(messages.get(i).toString()).append("\n");
             }
         }
@@ -187,5 +189,13 @@ public class ChatSession {
 
     public void setOffset(Integer offset) {
         this.offset = offset;
+    }
+
+    public List<CodeContext> getCodeContexts() {
+        return codeContexts;
+    }
+
+    public void setCodeContexts(List<CodeContext> codeContexts) {
+        this.codeContexts = codeContexts;
     }
 }

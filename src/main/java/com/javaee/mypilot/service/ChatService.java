@@ -2,9 +2,9 @@ package com.javaee.mypilot.service;
 
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
-import com.javaee.mypilot.core.consts.Chat;
 import com.javaee.mypilot.core.enums.ChatOpt;
-import com.javaee.mypilot.core.model.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeContext;
+import com.javaee.mypilot.infra.agent.PsiManager;
 import com.javaee.mypilot.infra.chat.HistoryCompressor;
 import com.javaee.mypilot.infra.chat.TokenEvaluator;
 import com.javaee.mypilot.infra.repo.IChatRepo;
@@ -26,6 +26,7 @@ public final class ChatService {
     private final TokenEvaluator tokenEvaluator;
     private final RagService RagService;
     private final AgentService agentService;
+    private final PsiManager psiManager;
     private final IChatRepo chatRepo;
 
     public ChatService(@NotNull Project project) {
@@ -34,6 +35,7 @@ public final class ChatService {
         this.tokenEvaluator = project.getService(TokenEvaluator.class);
         this.RagService = project.getService(RagService.class);
         this.agentService = project.getService(AgentService.class);
+        this.psiManager = project.getService(PsiManager.class);
         this.chatRepo = project.getService(InMemChatRepo.class);
     }
 
@@ -66,10 +68,10 @@ public final class ChatService {
      * @param sessionId 聊天会话ID
      * @param chatOpt 聊天选项
      * @param message 用户请求内容
-     * @param codeContext 代码上下文
+     * @param codeReferences 代码引用信息列表
      * @return 聊天回复消息
      */
-    public ChatMessage handleRequest(String sessionId, ChatOpt chatOpt, String message, CodeContext codeContext) {
+    public ChatMessage handleRequest(String sessionId, ChatOpt chatOpt, String message, List<CodeReference> codeReferences) {
 
         // 获取聊天会话
         ChatSession chatSession = chatRepo.getChatSession(sessionId);
@@ -91,6 +93,10 @@ public final class ChatService {
             chatSession.setMeta(compressedHistory);
             chatSession.setOffset(chatSession.getMessageCount());
         }
+
+        // 获取代码上下文
+        List<CodeContext> codeContexts = psiManager.fetchCodeContext(codeReferences);
+        chatSession.setCodeContexts(codeContexts);
 
         // 根据聊天选项调用相应的服务处理请求
         ChatMessage responseMessage = switch (chatOpt) {

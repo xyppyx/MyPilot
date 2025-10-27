@@ -2,7 +2,7 @@ package com.javaee.mypilot.service;
 
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
-import com.javaee.mypilot.core.model.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.rag.Answer;

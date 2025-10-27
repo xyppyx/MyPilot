@@ -3,6 +3,10 @@ package com.javaee.mypilot.infra.agent;
 
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.javaee.mypilot.core.model.chat.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeReference;
+
+import java.util.List;
 
 /**
  * PSI 管理器，负责处理与 PSI（Program Structure Interface）相关的操作，
@@ -18,4 +22,8 @@ public final class PsiManager {
         this.project = project;
     }
 
+
+    public List<CodeContext> fetchCodeContext(List<CodeReference> codeReferences) {
+        return null;
+    }
 }

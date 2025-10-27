@@ -1,16 +1,17 @@
-package com.javaee.mypilot.core.model;
+package com.javaee.mypilot.core.model.chat;
 
 /**
  * 代码上下文信息 - 用于传递用户当前编辑的代码上下文
  * Code context information for understanding user's current coding context
  */
 public class CodeContext {
+
+    private CodeReference sourceReference;
     private String selectedCode;        // 选中的代码
     private String fileName;            // 文件名
     private String packageName;         // 包名
     private String className;           // 类名
     private String methodName;          // 方法名
-    private int lineNumber;             // 行号
     private String surroundingCode;     // 周围的代码（上下文）
 
     public CodeContext() {
@@ -57,14 +58,6 @@ public class CodeContext {
         this.methodName = methodName;
     }
 
-    public int getLineNumber() {
-        return lineNumber;
-    }
-
-    public void setLineNumber(int lineNumber) {
-        this.lineNumber = lineNumber;
-    }
-
     public String getSurroundingCode() {
         return surroundingCode;
     }
@@ -97,9 +90,11 @@ public class CodeContext {
     public String toString() {
         return "CodeContext{" +
                 "fileName='" + fileName + '\'' +
+                ", packageName='" + packageName + '\'' +
                 ", className='" + className + '\'' +
                 ", methodName='" + methodName + '\'' +
-                ", lineNumber=" + lineNumber +
+                ", selectedCode='" + selectedCode + '\'' +
+                ", surroundingCode='" + surroundingCode + '\'' +
                 '}';
     }
 }
