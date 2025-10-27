@@ -32,6 +32,16 @@ public final class LlmClient {
     }
 
     /**
+     * 异步调用 LLM API 生成回答
+     * @param prompt 完整的 prompt
+     * @return 包含生成的回答文本的异步任务
+     * @throws Exception 如果调用失败
+     */
+    public String chatAsync(String prompt) throws Exception {
+        return chat(prompt);
+    }
+
+    /**
      * 调用 LLM API 生成回答
      * @param prompt 完整的 prompt
      * @return 生成的回答文本
