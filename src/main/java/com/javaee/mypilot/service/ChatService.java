@@ -78,7 +78,7 @@ public final class ChatService {
 
         return CompletableFuture.supplyAsync(() -> {
 
-            // 1. 获取聊天会话 (chatRepo.getChatSession 如果是耗时I/O，最好单独包装或使用异步API)
+            // 1. 获取聊天会话
             ChatSession chatSession = chatRepo.getChatSession(sessionId);
             if (chatSession == null) {
                 throw new IllegalArgumentException("Invalid session ID: " + sessionId);
@@ -121,6 +121,13 @@ public final class ChatService {
         if (tokenEvaluator.isThresholdReached(tokenUsage)) {
             // 如果需要压缩，启动异步压缩任务
             compressionFuture = historyCompressor.compressAsync(chatSession)
+                    .exceptionally(
+                            ex -> {
+                                // 处理压缩失败的情况（记录日志等）
+                                System.err.println("History compression failed: " + ex.getMessage());
+                                return null;
+                            }
+                    )
                     .thenAccept(compressedHistory -> {
                         // 副作用：更新 chatSession 状态（在 compressionFuture 的线程中执行）
                         chatSession.setMeta(compressedHistory);
@@ -150,22 +157,10 @@ public final class ChatService {
      */
     private CompletableFuture<ChatMessage> handleServiceRequestAsync(ChatSession chatSession, ChatOpt chatOpt) {
 
-        // 根据不同的聊天选项调用不同的服务
-        CompletableFuture<ChatMessage> responseFuture;
-        
-        if (chatOpt == ChatOpt.ASK) {
-            // RAG 服务是同步的，需要包装为异步
-            responseFuture = CompletableFuture.supplyAsync(() -> 
-                RagService.handleRequest(chatSession)
-            );
-        } else if (chatOpt == ChatOpt.AGENT) {
-            // Agent 服务已经是异步的
-            responseFuture = agentService.handleRequestAsync(chatSession);
-        } else {
-            responseFuture = CompletableFuture.failedFuture(
-                new IllegalArgumentException("Unsupported chat option: " + chatOpt)
-            );
-        }
+        CompletableFuture<ChatMessage> responseFuture = switch (chatOpt) {
+                case ASK -> RagService.handleRequestAsync(chatSession);
+                case AGENT -> agentService.handleRequestAsync(chatSession);
+        };
 
         // 任务 3B: 善后和保存
         return responseFuture.thenApply(responseMessage -> {

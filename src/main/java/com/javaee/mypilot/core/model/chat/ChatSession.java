@@ -90,6 +90,27 @@ public class ChatSession {
     }
 
     /**
+     * 构建所有对话上下文string
+     * @return prompt字符串
+     */
+    public String buildSessionContextPrompt() {
+        StringBuilder prompt = new StringBuilder();
+        if (meta != null) {
+            prompt.append("对话历史摘要:\n");
+            prompt.append(meta.toString()).append("\n");
+        }
+
+        if (messages != null) {
+            prompt.append("对话历史:\n");
+            for (var msg : messages) {
+                String role = msg.isUserMessage() ? "用户" : "助手";
+                prompt.append(role).append(": ").append(msg.getContent()).append("\n");
+            }
+        }
+        return prompt.toString().trim();
+    }
+
+    /**
      * 构建代码上下文string
      * @return 代码上下文字符串
      */
