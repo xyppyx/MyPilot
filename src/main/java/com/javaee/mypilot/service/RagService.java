@@ -3,9 +3,9 @@ package com.javaee.mypilot.service;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
-import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatSession;
+import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.rag.Answer;
 import com.javaee.mypilot.core.model.rag.Citation;
 import com.javaee.mypilot.core.model.rag.DocumentChunk;
@@ -27,6 +27,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -437,6 +438,14 @@ public final class RagService {
             e.printStackTrace();
             return new ArrayList<>();
         }
+    }
+
+    /**
+     * 异步处理聊天会话请求
+     * TODO: rag
+     */
+    public CompletableFuture<ChatMessage> handleRequestAsync(ChatSession chatSession) {
+        return null;
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.javaee.mypilot.service;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
@@ -10,8 +12,6 @@ import com.javaee.mypilot.infra.agent.DiffManager;
 import com.javaee.mypilot.infra.api.AgentPrompt;
 import com.javaee.mypilot.infra.api.LlmClient;
 import org.jetbrains.annotations.NotNull;
-import com.google.gson.Gson;
-import com.google.gson.JsonSyntaxException;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -64,7 +64,7 @@ public final class AgentService {
     }
 
     /**
-     * 解析llm json返回中的explanation为AgentResponse
+     * 解析llm返回json为AgentResponse
      * @param response llm返回的json字符串
      * @return 解析后的AgentResponse
      */
