@@ -3,14 +3,16 @@ package com.javaee.mypilot.service;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.enums.ChatOpt;
+import com.javaee.mypilot.core.model.chat.ChatMessage;
+import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.chat.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeReference;
 import com.javaee.mypilot.infra.AppExecutors;
 import com.javaee.mypilot.infra.agent.PsiHandler;
 import com.javaee.mypilot.infra.chat.HistoryCompressor;
 import com.javaee.mypilot.infra.chat.TokenEvaluator;
 import com.javaee.mypilot.infra.repo.IChatRepo;
 import com.javaee.mypilot.infra.repo.InMemChatRepo;
-import com.javaee.mypilot.core.model.chat.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -78,7 +80,7 @@ public final class ChatService {
 
         return CompletableFuture.supplyAsync(() -> {
 
-            // 1. 获取聊天会话 (chatRepo.getChatSession 如果是耗时I/O，最好单独包装或使用异步API)
+            // 1. 获取聊天会话
             ChatSession chatSession = chatRepo.getChatSession(sessionId);
             if (chatSession == null) {
                 throw new IllegalArgumentException("Invalid session ID: " + sessionId);
@@ -110,6 +112,13 @@ public final class ChatService {
         if (tokenEvaluator.isThresholdReached(chatSession.getTokenUsage())) {
             // 如果需要压缩，启动异步压缩任务
             compressionFuture = historyCompressor.compressAsync(chatSession)
+                    .exceptionally(
+                            ex -> {
+                                // 处理压缩失败的情况（记录日志等）
+                                System.err.println("History compression failed: " + ex.getMessage());
+                                return null;
+                            }
+                    )
                     .thenAccept(compressedHistory -> {
                         // 副作用：更新 chatSession 状态（在 compressionFuture 的线程中执行）
                         chatSession.setMeta(compressedHistory);
@@ -139,14 +148,10 @@ public final class ChatService {
      */
     private CompletableFuture<ChatMessage> handleServiceRequestAsync(ChatSession chatSession, ChatOpt chatOpt) {
 
-        CompletableFuture<ChatMessage> responseFuture = CompletableFuture.supplyAsync(() -> {
-            // 核心服务调用
-            return switch (chatOpt) {
-                case ASK -> RagService.handleRequest(chatSession); // 假设 handleRequest 是同步耗时方法
-                case AGENT -> agentService.handleRequest(chatSession); // 假设 handleRequest 是同步耗时方法
-                default -> throw new IllegalArgumentException("Unsupported chat option: " + chatOpt);
-            };
-        });
+        CompletableFuture<ChatMessage> responseFuture = switch (chatOpt) {
+                case ASK -> RagService.handleRequestAsync(chatSession);
+                case AGENT -> agentService.handleRequestAsync(chatSession);
+        };
 
         // 任务 3B: 善后和保存
         return responseFuture.thenApply(responseMessage -> {
