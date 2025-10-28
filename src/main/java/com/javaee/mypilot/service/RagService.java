@@ -532,10 +532,292 @@ public final class RagService {
 
     /**
      * 异步处理聊天会话请求
-     * TODO: rag
+     * 策略：
+     * - 轻量级操作（解析、字符串拼接）同步执行
+     * - 耗时的I/O操作（向量检索、LLM API调用）异步并行执行
+     *
+     * @param chatSession 聊天会话
+     * @return 异步的 ChatMessage 结果
      */
     public CompletableFuture<ChatMessage> handleRequestAsync(ChatSession chatSession) {
-        return null;
+        // 确保RAG系统已初始化
+        if (!initialized) {
+            initialize();
+        }
+
+        // 步骤1: 同步解析用户输入（轻量级操作，耗时 < 1ms）
+        UserQueryContext queryContext = parseUserQuery(chatSession);
+        if (queryContext.hasError) {
+            return CompletableFuture.completedFuture(
+                createErrorMessage(queryContext.errorMessage)
+            );
+        }
+
+        // 步骤2 & 3: 并行执行两个耗时的I/O操作
+        // 任务A: 异步从知识库检索相关文档（磁盘I/O，耗时 10-100ms）
+        CompletableFuture<List<DocumentChunk>> retrievalFuture =
+            CompletableFuture.supplyAsync(() -> retrieveDocuments(queryContext));
+
+        // 任务B: 异步构建历史对话上下文（内存操作，耗时 1-10ms）
+        CompletableFuture<String> historyFuture =
+            CompletableFuture.supplyAsync(() -> buildHistoryPrompt(chatSession));
+
+        // 步骤4: 等待任务A和任务B完成，然后构建最终的prompt和调用LLM
+        return retrievalFuture.thenCombine(historyFuture, (chunks, history) -> {
+                // 同步构建 RAG Prompt（纯内存操作，快速）
+                PromptBuildResult promptResult = buildPromptWithContext(queryContext, chunks);
+                return new PromptAndHistory(promptResult, history);
+            })
+            .thenCompose(pair ->
+                // 步骤5: 异步调用 LLM API（网络I/O，最耗时：1-5秒）
+                CompletableFuture.supplyAsync(() ->
+                    callLlmApi(pair.promptResult, pair.historyPrompt)
+                )
+            )
+            .thenApply(llmResponse ->
+                // 步骤6: 同步组装最终响应（纯内存操作，快速）
+                assembleResponse(queryContext, llmResponse)
+            )
+            .exceptionally(this::handleAsyncError);
+    }
+
+    /**
+     * 解析用户查询和代码上下文
+     */
+    private UserQueryContext parseUserQuery(ChatSession chatSession) {
+        try {
+            // 获取最后一条用户消息作为问题
+            ChatMessage lastMessage = chatSession.getLastMessage();
+            if (lastMessage == null || !lastMessage.isUserMessage()) {
+                return new UserQueryContext("无效的请求：找不到用户问题", true);
+            }
+            String question = lastMessage.getContent();
+
+            // 检查是否有代码上下文
+            List<CodeContext> codeContexts = chatSession.getCodeContexts();
+            boolean hasCodeContext = codeContexts != null && !codeContexts.isEmpty();
+            String codeContextStr = null;
+
+            if (hasCodeContext) {
+                // 合并所有代码上下文
+                StringBuilder codeBuilder = new StringBuilder();
+                for (CodeContext ctx : codeContexts) {
+                    codeBuilder.append(ctx.formatContext());
+                }
+                codeContextStr = codeBuilder.toString();
+            }
+
+            return new UserQueryContext(question, codeContextStr, hasCodeContext);
+        } catch (Exception e) {
+            return new UserQueryContext("解析用户查询失败: " + e.getMessage(), true);
+        }
+    }
+
+    /**
+     * 从知识库检索相关文档
+     */
+    private List<DocumentChunk> retrieveDocuments(UserQueryContext queryContext) {
+        if (queryContext.hasError) {
+            return new ArrayList<>();
+        }
+
+        String query = queryContext.hasCodeContext ?
+            queryContext.question + " " + queryContext.codeContextStr :
+            queryContext.question;
+
+        return retrieveRelevantChunks(query, configService.getRetrievalTopK());
+    }
+
+    /**
+     * 构建历史对话上下文 Prompt
+     */
+    private String buildHistoryPrompt(ChatSession chatSession) {
+        return chatSession.buildSessionContextPrompt(Chat.MAX_CHAT_TURN);
+    }
+
+    /**
+     * 根据查询上下文和检索结果构建 Prompt
+     */
+    private PromptBuildResult buildPromptWithContext(UserQueryContext queryContext,
+                                                      List<DocumentChunk> relevantChunks) {
+        if (queryContext.hasError) {
+            return new PromptBuildResult(queryContext.errorMessage, true, false, relevantChunks);
+        }
+
+        // 判断是否找到相关知识
+        boolean hasRelevantKnowledge = !relevantChunks.isEmpty() &&
+            relevantChunks.get(0).getSimilarity() >= configService.getRelevanceThreshold();
+
+        // 构建RAG prompt
+        String ragPromptStr = buildRagPrompt(
+            queryContext.question,
+            queryContext.codeContextStr,
+            queryContext.hasCodeContext,
+            relevantChunks,
+            hasRelevantKnowledge
+        );
+
+        return new PromptBuildResult(ragPromptStr, false, hasRelevantKnowledge, relevantChunks);
+    }
+
+    /**
+     * 调用 LLM API 生成回答
+     */
+    private LlmResponse callLlmApi(PromptBuildResult promptResult, String historyPrompt) {
+        if (promptResult.hasError) {
+            return new LlmResponse(promptResult.content, true,
+                promptResult.hasRelevantKnowledge, promptResult.relevantChunks);
+        }
+
+        String finalPrompt = historyPrompt + "\n\n" + promptResult.content;
+
+        try {
+            String llmResponse = llmClient.chat(finalPrompt);
+            return new LlmResponse(llmResponse, false,
+                promptResult.hasRelevantKnowledge, promptResult.relevantChunks);
+        } catch (Exception e) {
+            System.err.println("调用 LLM API 失败: " + e.getMessage());
+            e.printStackTrace();
+            String errorMsg = "抱歉，调用 AI 模型时出现错误：" + e.getMessage() +
+                "\n\n请检查 API Key 和网络连接是否正常。";
+            return new LlmResponse(errorMsg, true,
+                promptResult.hasRelevantKnowledge, promptResult.relevantChunks);
+        }
+    }
+
+    /**
+     * 组装最终的响应消息
+     */
+    private ChatMessage assembleResponse(UserQueryContext queryContext, LlmResponse llmResponse) {
+        StringBuilder responseContent = new StringBuilder();
+        responseContent.append(llmResponse.content);
+
+        // 添加知识来源标注
+        responseContent.append("\n---\n");
+        if (llmResponse.hasRelevantKnowledge) {
+            responseContent.append("📚 知识来源：知识库材料\n");
+            for (int i = 0; i < Math.min(3, llmResponse.relevantChunks.size()); i++) {
+                DocumentChunk chunk = llmResponse.relevantChunks.get(i);
+                responseContent.append(String.format("  [%d] %s (第%d页) - 相似度: %.2f\n",
+                        i + 1, chunk.getSource(), chunk.getPageNumber(), chunk.getSimilarity()));
+            }
+        } else {
+            responseContent.append("💡 知识来源：基于大模型的通用知识\n");
+            responseContent.append("  注意：知识库中未找到相关的课程材料，本回答基于AI的通用知识。\n");
+        }
+
+        if (queryContext.hasCodeContext) {
+            responseContent.append("💻 已结合您提供的代码上下文\n");
+        }
+
+        System.out.println("RAG异步请求处理完成 - 知识库匹配: " + llmResponse.hasRelevantKnowledge +
+                         ", 代码上下文: " + queryContext.hasCodeContext);
+
+        return new ChatMessage(ChatMessage.Type.ASSISTANT, responseContent.toString());
+    }
+
+    /**
+     * 处理异步执行中的错误
+     */
+    private ChatMessage handleAsyncError(Throwable throwable) {
+        System.err.println("异步处理RAG请求时出错: " + throwable.getMessage());
+        throwable.printStackTrace();
+        return createErrorMessage("处理请求时发生错误: " + throwable.getMessage());
+    }
+
+    /**
+     * 构建 RAG Prompt
+     */
+    private String buildRagPrompt(String question, String codeContextStr, boolean hasCodeContext,
+                                   List<DocumentChunk> relevantChunks, boolean hasRelevantKnowledge) {
+        if (hasCodeContext && hasRelevantKnowledge) {
+            // 有代码上下文 + 有知识库材料
+            return ragPrompt.buildPromptWithCodeContext(question, codeContextStr, relevantChunks);
+        } else if (hasCodeContext && !hasRelevantKnowledge) {
+            // 有代码上下文 + 无知识库材料
+            return ragPrompt.buildPromptWithCodeContextOnly(question, codeContextStr);
+        } else if (!hasCodeContext && hasRelevantKnowledge) {
+            // 无代码上下文 + 有知识库材料
+            return ragPrompt.buildPromptWithContext(question, relevantChunks);
+        } else {
+            // 无代码上下文 + 无知识库材料
+            return ragPrompt.buildGeneralPrompt(question);
+        }
+    }
+
+    /**
+     * 用户查询上下文（内部类）
+     */
+    private static class UserQueryContext {
+        final String question;
+        final String codeContextStr;
+        final boolean hasCodeContext;
+        final boolean hasError;
+        final String errorMessage;
+
+        UserQueryContext(String question, String codeContextStr, boolean hasCodeContext) {
+            this.question = question;
+            this.codeContextStr = codeContextStr;
+            this.hasCodeContext = hasCodeContext;
+            this.hasError = false;
+            this.errorMessage = null;
+        }
+
+        UserQueryContext(String errorMessage, boolean hasError) {
+            this.errorMessage = errorMessage;
+            this.hasError = hasError;
+            this.question = null;
+            this.codeContextStr = null;
+            this.hasCodeContext = false;
+        }
+    }
+
+    /**
+     * Prompt 构建结果（内部类）
+     */
+    private static class PromptBuildResult {
+        final String content;
+        final boolean hasError;
+        final boolean hasRelevantKnowledge;
+        final List<DocumentChunk> relevantChunks;
+
+        PromptBuildResult(String content, boolean hasError, boolean hasRelevantKnowledge, List<DocumentChunk> relevantChunks) {
+            this.content = content;
+            this.hasError = hasError;
+            this.hasRelevantKnowledge = hasRelevantKnowledge;
+            this.relevantChunks = relevantChunks;
+        }
+    }
+
+    /**
+     * LLM 响应结果（内部类）
+     */
+    private static class LlmResponse {
+        final String content;
+        final boolean hasError;
+        final boolean hasRelevantKnowledge;
+        final List<DocumentChunk> relevantChunks;
+
+        LlmResponse(String content, boolean hasError, boolean hasRelevantKnowledge, List<DocumentChunk> relevantChunks) {
+            this.content = content;
+            this.hasError = hasError;
+            this.hasRelevantKnowledge = hasRelevantKnowledge;
+            this.relevantChunks = relevantChunks;
+        }
+    }
+
+    /**
+     * Prompt 和历史上下文的组合（内部类）
+     * 用于在异步流程中传递中间结果
+     */
+    private static class PromptAndHistory {
+        final PromptBuildResult promptResult;
+        final String historyPrompt;
+
+        PromptAndHistory(PromptBuildResult promptResult, String historyPrompt) {
+            this.promptResult = promptResult;
+            this.historyPrompt = historyPrompt;
+        }
     }
 
     /**
@@ -565,14 +847,7 @@ public final class RagService {
             if (hasCodeContext) {
                 // 合并所有代码上下文
                 StringBuilder codeBuilder = new StringBuilder();
-                for (CodeContext ctx : codeContexts) {
-                    if (ctx.getSelectedCode() != null) {
-                        if (ctx.getFileName() != null) {
-                            codeBuilder.append("// 文件: ").append(ctx.getFileName()).append("\n");
-                        }
-                        codeBuilder.append(ctx.getSelectedCode()).append("\n\n");
-                    }
-                }
+                for (CodeContext ctx : codeContexts) codeBuilder.append(ctx.formatContext());
                 codeContextStr = codeBuilder.toString();
             }
 

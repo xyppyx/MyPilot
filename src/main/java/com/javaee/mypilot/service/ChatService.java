@@ -160,8 +160,7 @@ public final class ChatService {
     private CompletableFuture<ChatMessage> handleServiceRequestAsync(ChatSession chatSession, ChatOpt chatOpt) {
 
         CompletableFuture<ChatMessage> responseFuture = switch (chatOpt) {
-                case ASK -> CompletableFuture.supplyAsync(() ->
-                    RagService.getInstance(project).handleRequest(chatSession));
+                case ASK -> RagService.handleRequestAsync(chatSession);
                 case AGENT -> agentService.handleRequestAsync(chatSession);
         };
 
