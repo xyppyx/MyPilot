@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
+import com.javaee.mypilot.infra.AppExecutors;
 import com.javaee.mypilot.service.ConfigService;
 
 import java.io.BufferedReader;
@@ -27,12 +28,13 @@ public final class LlmClient {
     private final Project project;
     private final ConfigService configService;
     private final Gson gson;
-    private final Executor ioExecutor = Executors.newCachedThreadPool();
+    private final AppExecutors appExecutors;
 
     public LlmClient(Project project) {
         this.project = project;
         this.configService = ConfigService.getInstance(project);
         this.gson = new Gson();
+        this.appExecutors = AppExecutors.getInstance(project);
     }
 
     /**
@@ -48,7 +50,7 @@ public final class LlmClient {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }, ioExecutor);
+        }, appExecutors.getIoExecutor());
     }
 
     /**
