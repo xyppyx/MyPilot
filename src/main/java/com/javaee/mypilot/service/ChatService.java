@@ -3,14 +3,16 @@ package com.javaee.mypilot.service;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.enums.ChatOpt;
+import com.javaee.mypilot.core.model.chat.ChatMessage;
+import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.chat.CodeContext;
+import com.javaee.mypilot.core.model.chat.CodeReference;
 import com.javaee.mypilot.infra.AppExecutors;
 import com.javaee.mypilot.infra.agent.PsiHandler;
 import com.javaee.mypilot.infra.chat.HistoryCompressor;
 import com.javaee.mypilot.infra.chat.TokenEvaluator;
 import com.javaee.mypilot.infra.repo.IChatRepo;
 import com.javaee.mypilot.infra.repo.InMemChatRepo;
-import com.javaee.mypilot.core.model.chat.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
@@ -158,7 +160,8 @@ public final class ChatService {
     private CompletableFuture<ChatMessage> handleServiceRequestAsync(ChatSession chatSession, ChatOpt chatOpt) {
 
         CompletableFuture<ChatMessage> responseFuture = switch (chatOpt) {
-                case ASK -> RagService.handleRequestAsync(chatSession);
+                case ASK -> CompletableFuture.supplyAsync(() ->
+                    RagService.getInstance(project).handleRequest(chatSession));
                 case AGENT -> agentService.handleRequestAsync(chatSession);
         };
 

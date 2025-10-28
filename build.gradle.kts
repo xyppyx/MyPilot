@@ -71,4 +71,22 @@ tasks {
         sourceCompatibility = "21"
         targetCompatibility = "21"
     }
+
+    // 确保 resources 目录下的所有文件都被包含（包括 PPT、PDF 等二进制文件）
+    processResources {
+        // 默认情况下，Gradle 会复制所有 resources 文件
+        // 但为了确保大文件和二进制文件也被包含，我们显式配置
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
+        // 包含所有文件类型
+        include("**/*")
+
+        // 特别说明：不要过滤二进制文件
+        filteringCharset = "UTF-8"
+    }
+
+    // 构建插件时，确保资源文件被打包
+    buildPlugin {
+        dependsOn(processResources)
+    }
 }

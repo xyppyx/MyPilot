@@ -1,10 +1,14 @@
 package com.javaee.mypilot.service;
 
-import com.intellij.openapi.components.*;
+import com.intellij.openapi.components.PersistentStateComponent;
+import com.intellij.openapi.components.Service;
+import com.intellij.openapi.components.State;
+import com.intellij.openapi.components.Storage;
 import com.intellij.openapi.project.Project;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -38,8 +42,8 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public List<LlmProfile> llmProfiles = new ArrayList<>();
         public String ragSearchPath;
         public String defaultProfileName;
-        public String knowledgeBasePath;
-        public String courseMaterialPath; // 课程材料文件夹路径（PPT/PDF）
+        public String knowledgeBasePath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "vector_index";
+        public String courseMaterialPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "courseMaterials"; // 课程材料文件夹路径（PPT/PDF）
 
         // RAG Embedding 配置
         public String embeddingServiceType = "DashScope"; // DashScope, Zhipu, Local

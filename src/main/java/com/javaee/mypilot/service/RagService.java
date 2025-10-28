@@ -25,6 +25,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
+import java.io.InputStream;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -101,7 +103,7 @@ public final class RagService {
     }
 
     /**
-     * 自动从内置PPT文件夹加载知识库
+     * 自动从资源中提取并加载知识库
      */
     private void autoLoadKnowledgeBase() {
         try {
@@ -111,36 +113,34 @@ public final class RagService {
                 return;
             }
 
-            // 获取PPT文件夹路径
-            File pptFolder = getPPTFolder();
-            if (pptFolder == null || !pptFolder.exists() || !pptFolder.isDirectory()) {
-                System.out.println("PPT文件夹不存在，跳过自动加载: " + (pptFolder != null ? pptFolder.getPath() : "null"));
+            // 从 JAR 资源中提取课程材料到用户目录
+            File materialDir = extractCourseMaterialsFromResources();
+            if (materialDir == null || !materialDir.exists()) {
+                System.out.println("无法提取课程材料，跳过自动加载");
                 return;
             }
 
-            // 收集所有PDF文件
-            List<File> pptFiles = new ArrayList<>();
-            File[] files = pptFolder.listFiles();
+            // 收集所有课程材料文件
+            List<File> materialFiles = new ArrayList<>();
+            File[] files = materialDir.listFiles();
             if (files != null) {
                 for (File file : files) {
                     String fileName = file.getName().toLowerCase();
                     if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
-                        pptFiles.add(file);
+                        materialFiles.add(file);
                     }
                 }
             }
 
-            if (pptFiles.isEmpty()) {
-                System.out.println("PPT文件夹中没有找到PDF或PPT文件");
+            if (materialFiles.isEmpty()) {
+                System.out.println("未找到课程材料文件");
                 return;
             }
 
-            System.out.println("发现 " + pptFiles.size() + " 个课程材料文件，开始自动索引...");
-            boolean success = initializeKnowledgeBase(pptFiles);
+            System.out.println("发现 " + materialFiles.size() + " 个课程材料文件，开始自动索引...");
+            boolean success = initializeKnowledgeBase(materialFiles);
             if (success) {
                 System.out.println("知识库自动加载完成！");
-            } else {
-                System.out.println("知识库自动加载失败");
             }
         } catch (Exception e) {
             System.err.println("自动加载知识库时出错: " + e.getMessage());
@@ -149,46 +149,136 @@ public final class RagService {
     }
 
     /**
-     * 获取PPT文件夹路径（从配置或默认路径）
+     * 从 JAR 资源中提取课程材料到用户目录
+     * @return 课程材料目录
      */
-    private File getPPTFolder() {
+    private File extractCourseMaterialsFromResources() {
         try {
-            // 1. 首先尝试从配置中获取路径
-            String configuredPath = configService.getCourseMaterialPath();
-            if (configuredPath != null && !configuredPath.isEmpty()) {
-                File configuredFolder = new File(configuredPath);
-                if (configuredFolder.exists() && configuredFolder.isDirectory()) {
-                    return configuredFolder;
-                } else {
-                    System.out.println("配置的课程材料路径不存在: " + configuredPath);
+            // 用户目录下的课程材料文件夹
+            String userHome = System.getProperty("user.home");
+            File materialDir = new File(userHome + File.separator + ".mypilot" + File.separator + "courseMaterials");
+
+            // 如果已经提取过，直接返回
+            if (materialDir.exists() && materialDir.list() != null && materialDir.list().length > 0) {
+                System.out.println("课程材料已存在: " + materialDir.getPath());
+                return materialDir;
+            }
+
+            // 创建目录
+            if (!materialDir.exists()) {
+                boolean created = materialDir.mkdirs();
+                if (!created) {
+                    System.err.println("无法创建课程材料目录: " + materialDir.getPath());
+                    return null;
                 }
             }
 
-            // 2. 如果配置中没有，尝试使用默认路径（开发环境）
-            String classPath = this.getClass().getProtectionDomain().getCodeSource().getLocation().getPath();
-            File classFile = new File(classPath);
+            // 从 resources/courseMaterials/ppt 目录提取文件
+            ClassLoader classLoader = getClass().getClassLoader();
+            String resourcePath = "courseMaterials/ppt/";
 
-            // 如果是在开发环境（从classes目录）
-            if (classFile.getPath().contains("classes")) {
-                // 返回源代码中的ppt文件夹
-                String projectRoot = classFile.getPath().split("build")[0];
-                File defaultFolder = new File(projectRoot + "src" + File.separator + "main" + File.separator +
-                               "java" + File.separator + "com" + File.separator + "javaee" + File.separator +
-                               "mypilot" + File.separator + "infra" + File.separator + "rag" + File.separator + "ppt");
+            // 获取资源目录下的所有文件
+            List<String> fileNames = scanResourceDirectory(resourcePath);
+            if (fileNames.isEmpty()) {
+                System.out.println("未在资源目录 " + resourcePath + " 中找到课程材料文件");
+                return materialDir;
+            }
 
-                if (defaultFolder.exists() && defaultFolder.isDirectory()) {
-                    System.out.println("使用默认课程材料路径: " + defaultFolder.getPath());
-                    return defaultFolder;
+            System.out.println("发现 " + fileNames.size() + " 个课程材料文件待提取");
+
+            // 提取每个文件
+            int extractedCount = 0;
+            for (String fileName : fileNames) {
+                try (InputStream inputStream = classLoader.getResourceAsStream(resourcePath + fileName)) {
+                    if (inputStream != null) {
+                        File outputFile = new File(materialDir, fileName);
+                        java.nio.file.Files.copy(inputStream, outputFile.toPath(),
+                                StandardCopyOption.REPLACE_EXISTING);
+                        System.out.println("提取文件: " + fileName);
+                        extractedCount++;
+                    } else {
+                        System.out.println("资源文件不存在: " + fileName);
+                    }
+                } catch (Exception e) {
+                    System.err.println("提取文件失败 " + fileName + ": " + e.getMessage());
                 }
             }
 
-            // 如果是打包后的JAR环境，可以从resources中加载
-            // 这里需要根据实际部署方式调整
-            return null;
+            System.out.println("成功提取 " + extractedCount + " 个课程材料文件");
+            return materialDir;
         } catch (Exception e) {
-            System.err.println("获取PPT文件夹路径失败: " + e.getMessage());
+            System.err.println("提取课程材料失败: " + e.getMessage());
+            e.printStackTrace();
             return null;
         }
+    }
+
+    /**
+     * 扫描资源目录，获取所有 PPT/PDF 文件
+     * @param resourcePath 资源路径（如 "courseMaterials/ppt/"）
+     * @return 文件名列表
+     */
+    private List<String> scanResourceDirectory(String resourcePath) {
+        List<String> fileNames = new ArrayList<>();
+        try {
+            ClassLoader classLoader = getClass().getClassLoader();
+
+            // 尝试方法1：通过 getResource 获取目录的 URL
+            java.net.URL resourceUrl = classLoader.getResource(resourcePath);
+            if (resourceUrl != null) {
+                String protocol = resourceUrl.getProtocol();
+
+                if ("file".equals(protocol)) {
+                    // 开发环境：直接读取文件系统
+                    File dir = new File(resourceUrl.toURI());
+                    if (dir.exists() && dir.isDirectory()) {
+                        File[] files = dir.listFiles();
+                        if (files != null) {
+                            for (File file : files) {
+                                if (file.isFile() && isSupportedFile(file.getName())) {
+                                    fileNames.add(file.getName());
+                                }
+                            }
+                        }
+                    }
+                } else if ("jar".equals(protocol)) {
+                    // 生产环境：从 JAR 中读取
+                    java.net.JarURLConnection jarConnection = (java.net.JarURLConnection) resourceUrl.openConnection();
+                    java.util.jar.JarFile jarFile = jarConnection.getJarFile();
+                    java.util.Enumeration<java.util.jar.JarEntry> entries = jarFile.entries();
+
+                    while (entries.hasMoreElements()) {
+                        java.util.jar.JarEntry entry = entries.nextElement();
+                        String entryName = entry.getName();
+
+                        // 检查是否在目标目录下，且是支持的文件格式
+                        if (entryName.startsWith(resourcePath) && !entry.isDirectory()) {
+                            String fileName = entryName.substring(resourcePath.length());
+                            // 排除子目录中的文件
+                            if (!fileName.contains("/") && isSupportedFile(fileName)) {
+                                fileNames.add(fileName);
+                            }
+                        }
+                    }
+                }
+            } else {
+                System.out.println("无法找到资源目录: " + resourcePath);
+            }
+        } catch (Exception e) {
+            System.err.println("扫描资源目录失败: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return fileNames;
+    }
+
+    /**
+     * 检查是否是支持的文件格式
+     */
+    private boolean isSupportedFile(String fileName) {
+        String lowerName = fileName.toLowerCase();
+        return lowerName.endsWith(".ppt") ||
+               lowerName.endsWith(".pptx") ||
+               lowerName.endsWith(".pdf");
     }
 
     /**

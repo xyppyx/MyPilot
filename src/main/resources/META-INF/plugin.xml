@@ -29,6 +29,9 @@
                 id="settings.mypilot"
                 displayName="MyPilot"
                 nonDefaultProject="true"/>
+
+        <!-- Register project startup activity for RAG service initialization -->
+        <postStartupActivity implementation="com.javaee.mypilot.MyPilotProjectComponent"/>
     </extensions>
     
     <!-- Actions -->
