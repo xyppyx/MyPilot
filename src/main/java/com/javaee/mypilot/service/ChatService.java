@@ -90,7 +90,12 @@ public final class ChatService {
 
             // 3. 更新token消耗量 (CPU 密集型，保持同步)
             Integer token = tokenEvaluator.estimateTokens(userMessage.getContent());
-            chatSession.setTokenUsage(token + chatSession.getTokenUsage());
+            // 防御性编程：如果 tokenUsage 为 null，使用 0 作为默认值
+            Integer currentUsage = chatSession.getTokenUsage();
+            if (currentUsage == null) {
+                currentUsage = 0;
+            }
+            chatSession.setTokenUsage(token + currentUsage);
 
             return chatSession;
         }, appExecutors.getCpuExecutor());
@@ -107,7 +112,13 @@ public final class ChatService {
         // 任务 2A: 压缩对话 (仅在需要时执行)
         CompletableFuture<Void> compressionFuture;
 
-        if (tokenEvaluator.isThresholdReached(chatSession.getTokenUsage())) {
+        // 防御性编程：如果 tokenUsage 为 null，使用 0 作为默认值
+        Integer tokenUsage = chatSession.getTokenUsage();
+        if (tokenUsage == null) {
+            tokenUsage = 0;
+        }
+
+        if (tokenEvaluator.isThresholdReached(tokenUsage)) {
             // 如果需要压缩，启动异步压缩任务
             compressionFuture = historyCompressor.compressAsync(chatSession)
                     .thenAccept(compressedHistory -> {
@@ -139,14 +150,22 @@ public final class ChatService {
      */
     private CompletableFuture<ChatMessage> handleServiceRequestAsync(ChatSession chatSession, ChatOpt chatOpt) {
 
-        CompletableFuture<ChatMessage> responseFuture = CompletableFuture.supplyAsync(() -> {
-            // 核心服务调用
-            return switch (chatOpt) {
-                case ASK -> RagService.handleRequest(chatSession); // 假设 handleRequest 是同步耗时方法
-                case AGENT -> agentService.handleRequest(chatSession); // 假设 handleRequest 是同步耗时方法
-                default -> throw new IllegalArgumentException("Unsupported chat option: " + chatOpt);
-            };
-        });
+        // 根据不同的聊天选项调用不同的服务
+        CompletableFuture<ChatMessage> responseFuture;
+        
+        if (chatOpt == ChatOpt.ASK) {
+            // RAG 服务是同步的，需要包装为异步
+            responseFuture = CompletableFuture.supplyAsync(() -> 
+                RagService.handleRequest(chatSession)
+            );
+        } else if (chatOpt == ChatOpt.AGENT) {
+            // Agent 服务已经是异步的
+            responseFuture = agentService.handleRequestAsync(chatSession);
+        } else {
+            responseFuture = CompletableFuture.failedFuture(
+                new IllegalArgumentException("Unsupported chat option: " + chatOpt)
+            );
+        }
 
         // 任务 3B: 善后和保存
         return responseFuture.thenApply(responseMessage -> {

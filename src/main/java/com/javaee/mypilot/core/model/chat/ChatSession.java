@@ -23,6 +23,8 @@ public class ChatSession {
         this.id = UUID.randomUUID().toString();
         this.messages = new ArrayList<>();
         this.title = Chat.DEFAULT_TITLE;
+        this.tokenUsage = 0;  // 初始化 token 使用量为 0
+        this.offset = 0;      // 初始化偏移量为 0
     }
     
     public ChatSession(String title) {

@@ -1,6 +1,7 @@
 package com.javaee.mypilot.infra.agent;
 
 
+import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.intellij.psi.*;
@@ -16,6 +17,7 @@ import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.concurrency.AppExecutorUtil;
 
 /**
  * PSI 管理器，负责处理与 PSI（Program Structure Interface）相关的操作，
@@ -31,14 +33,29 @@ public final class PsiHandler {
     }
 
     /**
-     * TODO: idea
-     * TODO: 改为idea platform 异步任务执行器
      * 异步根据代码引用列表，提取对应的代码上下文信息
+     * 使用 IntelliJ Platform 的 ReadAction.nonBlocking() 机制
+     * 这确保了在正确的线程上下文中访问 PSI 和 VirtualFile
+     * 
      * @param codeReferences 代码引用列表
      * @return 包含代码上下文列表的异步任务
      */
     public CompletableFuture<List<CodeContext>> fetchCodeContextAsync(List<CodeReference> codeReferences) {
-        return CompletableFuture.supplyAsync(() -> fetchCodeContext(codeReferences));
+        if (codeReferences == null || codeReferences.isEmpty()) {
+            return CompletableFuture.completedFuture(new ArrayList<>());
+        }
+        
+        // 创建 CompletableFuture 来包装 IntelliJ Platform 的异步操作
+        CompletableFuture<List<CodeContext>> future = new CompletableFuture<>();
+        
+        // 使用 IntelliJ Platform 的 ReadAction.nonBlocking() 进行非阻塞读取
+        ReadAction.nonBlocking(() -> fetchCodeContext(codeReferences))
+            .inSmartMode(project)  // 在智能模式下执行，确保索引已准备好
+            .submit(AppExecutorUtil.getAppExecutorService())  // 提交到应用线程池
+            .onSuccess(result -> future.complete(result))  // 成功时完成 Future
+            .onError(throwable -> future.completeExceptionally(throwable));  // 失败时传递异常
+        
+        return future;
     }
 
     /**
