@@ -79,6 +79,9 @@ public class CodeContext {
      */
     public String formatContext() {
         StringBuilder sb = new StringBuilder();
+        if (sourceReference != null) {
+            sb.append(sourceReference.toString()).append("\n");
+        }
         if (fileName != null) {
             sb.append("File: ").append(fileName).append("\n");
         }

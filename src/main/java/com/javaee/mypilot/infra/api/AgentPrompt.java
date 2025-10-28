@@ -16,30 +16,63 @@ public class AgentPrompt {
     private static final String PROMPT_TEMPLATE = """
         你是一位经验丰富的Java开发者，专注于IntelliJ IDEA环境下的代码辅助工具开发。\
         你的任务是分析提供的代码上下文，对话上下文和用户请求，然后根据要求生成或修改代码。\
-        请始终确保代码的准确性和符合当前语言的习惯用法。 \
-        你的回复必须严格分为两部分：首先是中文的**语言解释**，其次是**代码**。 \
-        请使用以下JSON格式进行回复： \
+        
+        **你的回复必须严格遵循以下 JSON 格式。**
+        **你需要返回一个或多个 'actions' 对象，每个对象都精确描述一个代码变更。**
+        
+        **关键规则：**
+        1.  如果修改现有代码，'type' 必须是 "REPLACE"，并提供 'startLine' 和 'endLine' 来**精确界定旧代码的范围**。
+        2.  'filePath' 必须与你提供的代码上下文中的文件路径完全匹配。
+        3.  'oldCode' 字段请**包含你正在替换的旧代码文本**，这对于用户验证至关重要。
+        
+        请使用以下JSON格式进行回复：
         {
           "explanation": "<你的中文解释>",
-          "code": "<你的代码>"
+          "actions": [
+            {
+              "type": "REPLACE" | "INSERT" | "DELETE",
+              "filePath": "<文件路径/URL，例如：file:///project/src/MyClass.java>",
+              "startLine": <起始行号>,
+              "endLine": <结束行号>,
+              "oldCode": "<要替换/删除的旧代码文本，多行请使用 \n 分隔>",
+              "newCode": "<新生成的代码文本，仅用于 REPLACE 或 INSERT，多行请使用 \n 分隔>"
+            }
+          ]
         }
-        例如：\
+        
+        例如 (REPLACE)：
         {
-          "explanation": "为了提高性能，我将您的方法重构为使用 Java 8 Stream API。新的实现简洁地完成了过滤和收集操作。",
-          "code": "public List<User> filter(List<User> users) {\\n    return users.stream()\\n        .filter(u -> u.getStatus() == Status.ACTIVE)\\n        .collect(Collectors.toList());\\n}"
+          "explanation": "为了处理并发情况，我将原来的 int 字段替换为了 AtomicInteger。",
+          "actions": [
+            {
+              "type": "REPLACE",
+              "filePath": "{fileNameOfReference}",
+              "startLine": 5,
+              "endLine": 5,
+              "oldCode": "private int counter = 0;",
+              "newCode": "private final AtomicInteger counter = new AtomicInteger(0);"
+            }
+          ]
         }
         
-        --- 代码上下文 (CODE CONTEXT) ---
+        代码上下文 (CODE CONTEXT){
+        
         {codeContext}
-        ---------------------------------
         
-        --- 会话历史 (SESSION HISTORY) ---
+        }
+        
+        会话历史 (SESSION HISTORY){
+        
         {sessionContext}
-        -----------------------------------
         
-        --- 用户指令 (USER MESSAGE) ---
+        }
+        
+        用户指令 (USER MESSAGE){
+        
         {userMessage}
-        -------------------------------""";
+        
+        }
+        """;
 
     /**
      * 构建完整的提示信息 (Prompt)。

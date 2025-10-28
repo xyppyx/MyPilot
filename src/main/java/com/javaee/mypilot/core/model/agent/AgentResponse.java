@@ -1,20 +1,24 @@
 package com.javaee.mypilot.core.model.agent;
 
+import com.javaee.mypilot.core.enums.CodeOpt;
+
+import java.util.List;
+
 /**
  * Agent响应模型
  * 调用大语言模型后返回的数据结构
  */
 public class AgentResponse {
 
-    private String explanation;  // 语言解释部分
-    private String code;         // 代码部分
+    private String explanation;                 // 语言解释部分
+    private List<CodeAction> codeActions;       // 代码部分
 
     public AgentResponse() {
     }
 
-    public AgentResponse(String explanation, String code) {
+    public AgentResponse(String explanation, List<CodeAction> codeActions) {
         this.explanation = explanation;
-        this.code = code;
+        this.codeActions = codeActions;
     }
 
     // Getters and Setters
@@ -26,11 +30,11 @@ public class AgentResponse {
         this.explanation = explanation;
     }
 
-    public String getCode() {
-        return code;
+    public List<CodeAction> getCodeActions() {
+        return codeActions;
     }
 
-    public void setCode(String code) {
-        this.code = code;
+    public void setCodeActions(List<CodeAction> codeActions) {
+        this.codeActions = codeActions;
     }
 }

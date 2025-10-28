@@ -13,6 +13,8 @@ import org.jetbrains.annotations.NotNull;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Agent服务类
  * 负责处理与智能代理相关的业务逻辑，包括构建Prompt、调用大语言模型API以及解析响应等。
@@ -36,7 +38,7 @@ public final class AgentService {
      * @param chatSession 聊天会话
      * @return llm回复
      */
-    public ChatMessage handleRequest(ChatSession chatSession) {
+    public CompletableFuture<ChatMessage> handleRequestAsync(ChatSession chatSession) {
 
         // 构建prompt
         String sessionContext = chatSession.buildSessionContextPrompt(Chat.MAX_CHAT_TURN);
@@ -44,31 +46,27 @@ public final class AgentService {
         String userMessage = chatSession.getLastMessage().getContent();
         String prompt = AgentPrompt.buildPrompt(codeContext, sessionContext, userMessage);
 
-        // 发送请求到llm
-        ChatMessage responseMessage;
+        // 异步调用llm client
         try {
-            String response = llmClient.chat(prompt);
-            AgentResponse agentResponse = parseLlmResponse(response);
-
-            // 构建回复消息
-            responseMessage = new ChatMessage(ChatMessage.Type.ASSISTANT, agentResponse.getExplanation());
-
-            // 异步处理代码部分
-            if (agentResponse.getCode() != null) {
-
-            }
-
+            return llmClient.chatAsync(prompt)
+                    .thenApply(this::parseLlmResponse)
+                    .thenApply(agentResponse -> {
+                        ChatMessage responseMessage = new ChatMessage(ChatMessage.Type.ASSISTANT, agentResponse.getExplanation());
+                        // 异步处理代码变更
+                        CompletableFuture.runAsync(() -> {
+                            diffManager.handleCodeChanges(agentResponse.getCodeActions());
+                        });
+                        return responseMessage;
+                    });
         } catch (Exception e) {
-            responseMessage = new ChatMessage(ChatMessage.Type.SYSTEM, "调用大语言模型接口失败: " + e.getMessage());
+            throw new RuntimeException(e);
         }
-
-        return responseMessage;
     }
 
     /**
-     * 解析llm json返回中的explanation为ChatMessage
+     * 解析llm json返回中的explanation为AgentResponse
      * @param response llm返回的json字符串
-     * @return 解析后的ChatMessage
+     * @return 解析后的AgentResponse
      */
     public AgentResponse parseLlmResponse(String response) {
 

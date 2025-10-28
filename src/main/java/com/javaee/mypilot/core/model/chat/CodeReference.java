@@ -13,6 +13,17 @@ public class CodeReference {
     private int endLine;                // 选中代码的结束行号
     private String selectedCode;        // 选中的代码文本（用于展示和初步 RAG）
 
+    public String toString() {
+        return "CodeReference{" +
+                "virtualFileUrl='" + virtualFileUrl + '\'' +
+                ", startOffset=" + startOffset +
+                ", endOffset=" + endOffset +
+                ", startLine=" + startLine +
+                ", endLine=" + endLine +
+                ", selectedCode='" + selectedCode + '\'' +
+                '}';
+    }
+
     // Getters and Setters
     public String getVirtualFileUrl() {
         return virtualFileUrl;
