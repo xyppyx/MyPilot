@@ -11,10 +11,10 @@ import com.javaee.mypilot.core.model.rag.Citation;
 import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import com.javaee.mypilot.infra.api.LlmClient;
 import com.javaee.mypilot.infra.api.RagPrompt;
-import com.javaee.mypilot.infra.rag.DocumentProcessor;
-import com.javaee.mypilot.infra.rag.PDFDocumentProcessor;
-import com.javaee.mypilot.infra.rag.PPTDocumentProcessor;
 import com.javaee.mypilot.infra.rag.Retriever;
+import com.javaee.mypilot.infra.rag.document.DocumentProcessor;
+import com.javaee.mypilot.infra.rag.document.PDFDocumentProcessor;
+import com.javaee.mypilot.infra.rag.document.PPTDocumentProcessor;
 import com.javaee.mypilot.infra.rag.embedding.DashScopeEmbeddingService;
 import com.javaee.mypilot.infra.rag.embedding.EmbeddingService;
 import com.javaee.mypilot.infra.rag.embedding.LocalEmbeddingService;
@@ -449,6 +449,211 @@ public final class RagService {
     }
 
     /**
+     * 初始化知识库（支持指定来源类型）
+     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF, Markdown等）
+     * @param sourceType 文档来源类型
+     * @return 是否成功
+     */
+    public boolean initializeKnowledgeBase(@NotNull List<File> courseMaterialFiles, DocumentChunk.SourceType sourceType) {
+        if (!initialized) {
+            initialize();
+        }
+
+        if (!initialized) {
+            System.err.println("RAG 组件初始化失败");
+            return false;
+        }
+
+        try {
+            String sourceTypeName = sourceType == DocumentChunk.SourceType.STATIC ? "静态资源" : "用户上传";
+            System.out.println("开始索引" + sourceTypeName + "文档...");
+            List<DocumentChunk> allChunks = new ArrayList<>();
+
+            for (File file : courseMaterialFiles) {
+                try {
+                    String fileName = file.getName().toLowerCase();
+
+                    if (fileName.endsWith(".pdf")) {
+                        if (pdfDocumentProcessor instanceof PDFDocumentProcessor) {
+                            System.out.println("处理文件: " + file.getName());
+                            List<DocumentChunk> chunks = ((PDFDocumentProcessor) pdfDocumentProcessor).process(file, sourceType);
+                            allChunks.addAll(chunks);
+                            System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                        }
+                    } else if (fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                        if (pptDocumentProcessor instanceof PPTDocumentProcessor) {
+                            System.out.println("处理文件: " + file.getName());
+                            List<DocumentChunk> chunks = ((PPTDocumentProcessor) pptDocumentProcessor).process(file, sourceType);
+                            allChunks.addAll(chunks);
+                            System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                        }
+                    } else {
+                        System.out.println("跳过不支持的文件格式: " + file.getName());
+                    }
+                } catch (Exception e) {
+                    System.err.println("处理文件失败 " + file.getName() + ": " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }
+
+            if (!allChunks.isEmpty()) {
+                System.out.println("索引 " + allChunks.size() + " 个" + sourceTypeName + "文档块到向量数据库...");
+                vectorDatabase.index(allChunks);
+                System.out.println(sourceTypeName + "知识库索引完成！");
+                return true;
+            } else {
+                System.out.println("没有找到可索引的文档");
+                return false;
+            }
+        } catch (Exception e) {
+            System.err.println("知识库初始化失败: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 用户上传文件到知识库
+     * @param files 用户上传的文件列表
+     * @return 是否成功
+     */
+    public boolean uploadFilesToKnowledgeBase(@NotNull List<File> files) {
+        if (!initialized) {
+            initialize();
+        }
+
+        try {
+            // 创建用户上传目录
+            String userUploadPath = configService.getUserUploadPath();
+            File uploadDir = new File(userUploadPath);
+            if (!uploadDir.exists()) {
+                boolean created = uploadDir.mkdirs();
+                if (!created) {
+                    System.err.println("无法创建用户上传目录: " + userUploadPath);
+                    return false;
+                }
+            }
+
+            // 复制文件到用户上传目录
+            List<File> copiedFiles = new ArrayList<>();
+            for (File file : files) {
+                try {
+                    File targetFile = new File(uploadDir, file.getName());
+                    java.nio.file.Files.copy(file.toPath(), targetFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+                    copiedFiles.add(targetFile);
+                    System.out.println("已复制用户文件: " + file.getName());
+                } catch (Exception e) {
+                    System.err.println("复制文件失败 " + file.getName() + ": " + e.getMessage());
+                }
+            }
+
+            if (copiedFiles.isEmpty()) {
+                System.out.println("没有成功复制任何文件");
+                return false;
+            }
+
+            // 使用 USER_UPLOADED 类型索引这些文件
+            boolean success = initializeKnowledgeBase(copiedFiles, DocumentChunk.SourceType.USER_UPLOADED);
+            if (success) {
+                System.out.println("成功上传并索引 " + copiedFiles.size() + " 个用户文件");
+            }
+            return success;
+
+        } catch (Exception e) {
+            System.err.println("上传文件到知识库失败: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 用户上传文件夹到知识库
+     * @param folder 用户上传的文件夹
+     * @return 是否成功
+     */
+    public boolean uploadFolderToKnowledgeBase(@NotNull File folder) {
+        if (!folder.isDirectory()) {
+            System.err.println("指定的路径不是文件夹: " + folder.getPath());
+            return false;
+        }
+
+        List<File> files = new ArrayList<>();
+        collectSupportedFiles(folder, files);
+
+        if (files.isEmpty()) {
+            System.out.println("文件夹中没有找到支持的文件格式");
+            return false;
+        }
+
+        System.out.println("在文件夹中发现 " + files.size() + " 个支持的文件");
+        return uploadFilesToKnowledgeBase(files);
+    }
+
+    /**
+     * 递归收集文件夹中所有支持的文件
+     */
+    private void collectSupportedFiles(File dir, List<File> result) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+
+        for (File file : files) {
+            if (file.isDirectory()) {
+                collectSupportedFiles(file, result);
+            } else {
+                String fileName = file.getName().toLowerCase();
+                if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                    result.add(file);
+                }
+            }
+        }
+    }
+
+    /**
+     * 获取知识库中的文档统计（按来源类型分类）
+     */
+    public KnowledgeBaseStats getDetailedStats() {
+        // 简化实现：返回总数
+        int totalCount = 0;
+        if (vectorDatabase instanceof LuceneVectorDatabase) {
+            totalCount = ((LuceneVectorDatabase) vectorDatabase).getDocumentCount();
+        }
+        // TODO: 完整实现需要在向量数据库中添加按 sourceType 过滤查询的功能
+        return new KnowledgeBaseStats(0, totalCount);
+    }
+
+    /**
+     * 知识库统计信息
+     */
+    public static class KnowledgeBaseStats {
+        private final int staticDocCount;
+        private final int userUploadedDocCount;
+
+        public KnowledgeBaseStats(int staticDocCount, int userUploadedDocCount) {
+            this.staticDocCount = staticDocCount;
+            this.userUploadedDocCount = userUploadedDocCount;
+        }
+
+        public int getStaticDocCount() {
+            return staticDocCount;
+        }
+
+        public int getUserUploadedDocCount() {
+            return userUploadedDocCount;
+        }
+
+        public int getTotalCount() {
+            return staticDocCount + userUploadedDocCount;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("知识库统计 - 静态资源: %d, 用户上传: %d, 总计: %d",
+                    staticDocCount, userUploadedDocCount, getTotalCount());
+        }
+    }
+
+    /**
      * 检查知识库是否已初始化
      */
     public boolean isKnowledgeBaseInitialized() {
@@ -817,117 +1022,6 @@ public final class RagService {
         PromptAndHistory(PromptBuildResult promptResult, String historyPrompt) {
             this.promptResult = promptResult;
             this.historyPrompt = historyPrompt;
-        }
-    }
-
-    /**
-     * 处理聊天会话请求，结合RAG知识库和代码上下文
-     * @param chatSession 聊天会话，包含历史对话和可能的代码上下文
-     * @return 生成的AI回复消息
-     */
-    public ChatMessage handleRequest(ChatSession chatSession) {
-        try {
-            // 确保RAG系统已初始化
-            if (!initialized) {
-                initialize();
-            }
-
-            // 1. 获取最后一条用户消息作为问题
-            ChatMessage lastMessage = chatSession.getLastMessage();
-            if (lastMessage == null || !lastMessage.isUserMessage()) {
-                return createErrorMessage("无效的请求：找不到用户问题");
-            }
-            String question = lastMessage.getContent();
-
-            // 2. 检查是否有代码上下文
-            List<CodeContext> codeContexts = chatSession.getCodeContexts();
-            boolean hasCodeContext = codeContexts != null && !codeContexts.isEmpty();
-            String codeContextStr = null;
-
-            if (hasCodeContext) {
-                // 合并所有代码上下文
-                StringBuilder codeBuilder = new StringBuilder();
-                for (CodeContext ctx : codeContexts) codeBuilder.append(ctx.formatContext());
-                codeContextStr = codeBuilder.toString();
-            }
-
-            // 3. 构建查询（结合问题和代码上下文）
-            String query = hasCodeContext ? question + " " + codeContextStr : question;
-
-            // 4. 从知识库检索相关文档
-            List<DocumentChunk> relevantChunks = retrieveRelevantChunks(query, configService.getRetrievalTopK());
-
-            // 5. 判断是否找到相关知识
-            boolean hasRelevantKnowledge = !relevantChunks.isEmpty() &&
-                    relevantChunks.get(0).getSimilarity() >= configService.getRelevanceThreshold();
-
-            // 6. 构建最终的prompt
-            String ragPromptStr;
-            if (hasCodeContext && hasRelevantKnowledge) {
-                // 有代码上下文 + 有知识库材料
-                ragPromptStr = ragPrompt.buildPromptWithCodeContext(question, codeContextStr, relevantChunks);
-            } else if (hasCodeContext && !hasRelevantKnowledge) {
-                // 有代码上下文 + 无知识库材料
-                ragPromptStr = ragPrompt.buildPromptWithCodeContextOnly(question, codeContextStr);
-            } else if (!hasCodeContext && hasRelevantKnowledge) {
-                // 无代码上下文 + 有知识库材料
-                ragPromptStr = ragPrompt.buildPromptWithContext(question, relevantChunks);
-            } else {
-                // 无代码上下文 + 无知识库材料
-                ragPromptStr = ragPrompt.buildGeneralPrompt(question);
-            }
-
-            // 7. 获取历史对话的prompt（最近N条消息）
-            String historyPrompt = chatSession.buildSessionContextPrompt(Chat.MAX_CHAT_TURN); // 获取最近10条消息
-
-            // 8. 组合成总prompt: 历史对话 + RAG prompt
-            String finalPrompt = historyPrompt + "\n\n" + ragPromptStr;
-
-            // 9. 调用 LLM API 生成回答
-            StringBuilder responseContent = new StringBuilder();
-
-            try {
-                String llmResponse = llmClient.chat(finalPrompt);
-                responseContent.append(llmResponse);
-            } catch (Exception llmError) {
-                System.err.println("调用 LLM API 失败: " + llmError.getMessage());
-                llmError.printStackTrace();
-                // 如果 API 调用失败，返回错误信息
-                responseContent.append("抱歉，调用 AI 模型时出现错误：").append(llmError.getMessage());
-                responseContent.append("\n\n请检查 API Key 和网络连接是否正常。");
-            }
-
-
-            // 10. 添加知识来源标注
-            responseContent.append("\n---\n");
-            if (hasRelevantKnowledge) {
-                responseContent.append("📚 知识来源：知识库材料\n");
-                for (int i = 0; i < Math.min(3, relevantChunks.size()); i++) {
-                    DocumentChunk chunk = relevantChunks.get(i);
-                    responseContent.append(String.format("  [%d] %s (第%d页) - 相似度: %.2f\n",
-                            i + 1, chunk.getSource(), chunk.getPageNumber(), chunk.getSimilarity()));
-                }
-            } else {
-                responseContent.append("💡 知识来源：基于大模型的通用知识\n");
-                responseContent.append("  注意：知识库中未找到相关的课程材料，本回答基于AI的通用知识。\n");
-            }
-
-            if (hasCodeContext) {
-                responseContent.append("💻 已结合您提供的代码上下文\n");
-            }
-
-            // 11. 创建AI回复消息
-            ChatMessage response = new ChatMessage(ChatMessage.Type.ASSISTANT, responseContent.toString());
-
-            System.out.println("RAG请求处理完成 - 知识库匹配: " + hasRelevantKnowledge +
-                             ", 代码上下文: " + hasCodeContext);
-
-            return response;
-
-        } catch (Exception e) {
-            System.err.println("处理RAG请求时出错: " + e.getMessage());
-            e.printStackTrace();
-            return createErrorMessage("处理请求时发生错误: " + e.getMessage());
         }
     }
 
