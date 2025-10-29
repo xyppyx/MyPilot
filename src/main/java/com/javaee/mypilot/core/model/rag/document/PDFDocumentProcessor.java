@@ -1,6 +1,5 @@
-package com.javaee.mypilot.infra.rag;
+package com.javaee.mypilot.core.model.rag.document;
 
-import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import com.javaee.mypilot.infra.rag.embedding.EmbeddingService;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;

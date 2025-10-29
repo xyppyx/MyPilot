@@ -1,9 +1,10 @@
 package com.javaee.mypilot.infra.rag;
-import java.util.List;
 
-import com.javaee.mypilot.core.model.rag.DocumentChunk;
+import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
 import com.javaee.mypilot.infra.rag.embedding.EmbeddingService;
 import com.javaee.mypilot.infra.rag.vector.VectorDatabase;
+
+import java.util.List;
 
 public class Retriever {
     private final EmbeddingService embeddingService;

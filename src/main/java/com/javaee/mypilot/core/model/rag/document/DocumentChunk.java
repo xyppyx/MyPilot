@@ -1,4 +1,4 @@
-package com.javaee.mypilot.core.model.rag;
+package com.javaee.mypilot.core.model.rag.document;
 
 /**
  * 文档片段，包含内容、来源、页码、标题、嵌入向量和相似度分数

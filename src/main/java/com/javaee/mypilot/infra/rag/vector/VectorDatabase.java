@@ -1,8 +1,8 @@
 package com.javaee.mypilot.infra.rag.vector;
 
-import java.util.List;
+import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
 
-import com.javaee.mypilot.core.model.rag.DocumentChunk;
+import java.util.List;
 public interface VectorDatabase {
     /**
      * 索引知识分块

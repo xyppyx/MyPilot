@@ -1,16 +1,20 @@
 package com.javaee.mypilot.infra.rag.vector;
 
-import com.javaee.mypilot.core.model.rag.DocumentChunk;
+import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * 基于 Lucene 的向量数据库实现
