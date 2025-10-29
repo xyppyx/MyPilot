@@ -12,9 +12,7 @@ import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import com.javaee.mypilot.infra.api.LlmClient;
 import com.javaee.mypilot.infra.api.RagPrompt;
 import com.javaee.mypilot.infra.rag.Retriever;
-import com.javaee.mypilot.infra.rag.document.DocumentProcessor;
-import com.javaee.mypilot.infra.rag.document.PDFDocumentProcessor;
-import com.javaee.mypilot.infra.rag.document.PPTDocumentProcessor;
+import com.javaee.mypilot.infra.rag.document.*;
 import com.javaee.mypilot.infra.rag.embedding.DashScopeEmbeddingService;
 import com.javaee.mypilot.infra.rag.embedding.EmbeddingService;
 import com.javaee.mypilot.infra.rag.embedding.LocalEmbeddingService;
@@ -48,6 +46,9 @@ public final class RagService {
     private Retriever retriever;
     private DocumentProcessor pptDocumentProcessor;
     private DocumentProcessor pdfDocumentProcessor;
+    private DocumentProcessor docDocumentProcessor;
+    private DocumentProcessor txtDocumentProcessor;
+    private DocumentProcessor markdownDocumentProcessor;
     private RagPrompt ragPrompt;
     private LlmClient llmClient;
 
@@ -84,6 +85,9 @@ public final class RagService {
             // 4. 初始化文档处理器
             this.pptDocumentProcessor = new PPTDocumentProcessor(embeddingService);
             this.pdfDocumentProcessor = new PDFDocumentProcessor(embeddingService);
+            this.docDocumentProcessor = new DOCDocumentProcessor(embeddingService);
+            this.txtDocumentProcessor = new TXTDocumentProcessor(embeddingService);
+            this.markdownDocumentProcessor = new MarkdownDocumentProcessor(embeddingService);
 
             // 5. 初始化 RagPrompt
             this.ragPrompt = new RagPrompt();
@@ -126,7 +130,9 @@ public final class RagService {
             if (files != null) {
                 for (File file : files) {
                     String fileName = file.getName().toLowerCase();
-                    if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                    if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx") ||
+                        fileName.endsWith(".doc") || fileName.endsWith(".docx") ||
+                        fileName.endsWith(".txt") || fileName.endsWith(".md")) {
                         materialFiles.add(file);
                     }
                 }
@@ -279,7 +285,11 @@ public final class RagService {
         String lowerName = fileName.toLowerCase();
         return lowerName.endsWith(".ppt") ||
                lowerName.endsWith(".pptx") ||
-               lowerName.endsWith(".pdf");
+               lowerName.endsWith(".pdf") ||
+               lowerName.endsWith(".doc") ||
+               lowerName.endsWith(".docx") ||
+               lowerName.endsWith(".txt") ||
+               lowerName.endsWith(".md");
     }
 
     /**
@@ -424,6 +434,21 @@ public final class RagService {
                         List<DocumentChunk> chunks = pptDocumentProcessor.process(file, sourceType);
                         allChunks.addAll(chunks);
                         System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                    } else if (fileName.endsWith(".doc") || fileName.endsWith(".docx")) {
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = docDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                    } else if (fileName.endsWith(".txt")) {
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = txtDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                    } else if (fileName.endsWith(".md")) {
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = markdownDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
                     } else {
                         System.out.println("跳过不支持的文件格式: " + file.getName());
                     }
@@ -539,42 +564,12 @@ public final class RagService {
                 collectSupportedFiles(file, result);
             } else {
                 String fileName = file.getName().toLowerCase();
-                if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx") ||
+                    fileName.endsWith(".doc") || fileName.endsWith(".docx") ||
+                    fileName.endsWith(".txt") || fileName.endsWith(".md")) {
                     result.add(file);
                 }
             }
-        }
-    }
-
-
-    /**
-     * 知识库统计信息
-     */
-    public static class KnowledgeBaseStats {
-        private final int staticDocCount;
-        private final int userUploadedDocCount;
-
-        public KnowledgeBaseStats(int staticDocCount, int userUploadedDocCount) {
-            this.staticDocCount = staticDocCount;
-            this.userUploadedDocCount = userUploadedDocCount;
-        }
-
-        public int getStaticDocCount() {
-            return staticDocCount;
-        }
-
-        public int getUserUploadedDocCount() {
-            return userUploadedDocCount;
-        }
-
-        public int getTotalCount() {
-            return staticDocCount + userUploadedDocCount;
-        }
-
-        @Override
-        public String toString() {
-            return String.format("知识库统计 - 静态资源: %d, 用户上传: %d, 总计: %d",
-                    staticDocCount, userUploadedDocCount, getTotalCount());
         }
     }
 

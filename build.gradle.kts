@@ -38,6 +38,7 @@ dependencies {
     // Apache POI for PPT processing
     implementation("org.apache.poi:poi:5.2.5")
     implementation("org.apache.poi:poi-ooxml:5.2.5")
+    implementation("org.apache.poi:poi-scratchpad:5.2.5") // For DOC (97-2003) format support
 
     // Apache PDFBox for PDF processing
     implementation("org.apache.pdfbox:pdfbox:2.0.30")
