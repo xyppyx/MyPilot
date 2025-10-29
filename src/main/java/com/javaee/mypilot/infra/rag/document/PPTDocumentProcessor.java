@@ -25,16 +25,6 @@ public class PPTDocumentProcessor implements DocumentProcessor {
     }
 
     @Override
-    public List<DocumentChunk> process(File file) {
-        return process(file, DocumentChunk.SourceType.USER_UPLOADED);
-    }
-
-    /**
-     * 处理 PPT 文件，支持指定来源类型
-     * @param file PPT 文件
-     * @param sourceType 来源类型（静态资源或用户上传）
-     * @return 文档块列表
-     */
     public List<DocumentChunk> process(File file, DocumentChunk.SourceType sourceType) {
         List<DocumentChunk> chunks = new ArrayList<>();
         try (FileInputStream fis = new FileInputStream(file);

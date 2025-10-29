@@ -138,7 +138,8 @@ public final class RagService {
             }
 
             System.out.println("发现 " + materialFiles.size() + " 个课程材料文件，开始自动索引...");
-            boolean success = initializeKnowledgeBase(materialFiles);
+            // 显式指定静态资源类型
+            boolean success = initializeKnowledgeBase(materialFiles, DocumentChunk.SourceType.STATIC);
             if (success) {
                 System.out.println("知识库自动加载完成！");
             }
@@ -390,68 +391,8 @@ public final class RagService {
 
     /**
      * 初始化知识库
-     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF, Markdown等）
-     * @return 是否成功
-     */
-    public boolean initializeKnowledgeBase(@NotNull List<File> courseMaterialFiles) {
-        if (!initialized) {
-            initialize();
-        }
-
-        if (!initialized) {
-            System.err.println("RAG 组件初始化失败");
-            return false;
-        }
-
-        try {
-            System.out.println("开始索引知识库文档...");
-            List<DocumentChunk> allChunks = new ArrayList<>();
-
-            for (File file : courseMaterialFiles) {
-                try {
-                    String fileName = file.getName().toLowerCase();
-                    DocumentProcessor processor = null;
-
-                    if (fileName.endsWith(".pdf")) {
-                        processor = pdfDocumentProcessor;
-                    } else if (fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
-                        processor = pptDocumentProcessor;
-                    }
-
-                    if (processor != null) {
-                        System.out.println("处理文件: " + file.getName());
-                        List<DocumentChunk> chunks = processor.process(file);
-                        allChunks.addAll(chunks);
-                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
-                    } else {
-                        System.out.println("跳过不支持的文件格式: " + file.getName());
-                    }
-                } catch (Exception e) {
-                    System.err.println("处理文件失败 " + file.getName() + ": " + e.getMessage());
-                    e.printStackTrace();
-                }
-            }
-
-            if (!allChunks.isEmpty()) {
-                System.out.println("索引 " + allChunks.size() + " 个文档块到向量数据库...");
-                vectorDatabase.index(allChunks);
-                System.out.println("知识库索引完成！");
-                return true;
-            } else {
-                System.out.println("没有找到可索引的文档");
-                return false;
-            }
-        } catch (Exception e) {
-            System.err.println("知识库初始化失败: " + e.getMessage());
-            e.printStackTrace();
-            return false;
-        }
-    }
-
-    /**
-     * 初始化知识库（支持指定来源类型）
-     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF, Markdown等）
-     * @param sourceType 文档来源类型
+     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF 等）
+     * @param sourceType 文档来源类型（STATIC 或 USER_UPLOADED）
      * @return 是否成功
      */
     public boolean initializeKnowledgeBase(@NotNull List<File> courseMaterialFiles, DocumentChunk.SourceType sourceType) {
@@ -474,19 +415,15 @@ public final class RagService {
                     String fileName = file.getName().toLowerCase();
 
                     if (fileName.endsWith(".pdf")) {
-                        if (pdfDocumentProcessor instanceof PDFDocumentProcessor) {
-                            System.out.println("处理文件: " + file.getName());
-                            List<DocumentChunk> chunks = ((PDFDocumentProcessor) pdfDocumentProcessor).process(file, sourceType);
-                            allChunks.addAll(chunks);
-                            System.out.println("  - 提取 " + chunks.size() + " 个文档块");
-                        }
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = pdfDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
                     } else if (fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
-                        if (pptDocumentProcessor instanceof PPTDocumentProcessor) {
-                            System.out.println("处理文件: " + file.getName());
-                            List<DocumentChunk> chunks = ((PPTDocumentProcessor) pptDocumentProcessor).process(file, sourceType);
-                            allChunks.addAll(chunks);
-                            System.out.println("  - 提取 " + chunks.size() + " 个文档块");
-                        }
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = pptDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
                     } else {
                         System.out.println("跳过不支持的文件格式: " + file.getName());
                     }
@@ -609,18 +546,6 @@ public final class RagService {
         }
     }
 
-    /**
-     * 获取知识库中的文档统计（按来源类型分类）
-     */
-    public KnowledgeBaseStats getDetailedStats() {
-        // 简化实现：返回总数
-        int totalCount = 0;
-        if (vectorDatabase instanceof LuceneVectorDatabase) {
-            totalCount = ((LuceneVectorDatabase) vectorDatabase).getDocumentCount();
-        }
-        // TODO: 完整实现需要在向量数据库中添加按 sourceType 过滤查询的功能
-        return new KnowledgeBaseStats(0, totalCount);
-    }
 
     /**
      * 知识库统计信息
