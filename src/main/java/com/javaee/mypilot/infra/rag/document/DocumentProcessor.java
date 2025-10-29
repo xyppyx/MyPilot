@@ -1,4 +1,6 @@
-package com.javaee.mypilot.core.model.rag.document;
+package com.javaee.mypilot.infra.rag.document;
+
+import com.javaee.mypilot.core.model.rag.DocumentChunk;
 
 import java.io.File;
 import java.util.List;

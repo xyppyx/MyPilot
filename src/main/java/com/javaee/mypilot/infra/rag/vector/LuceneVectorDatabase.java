@@ -1,6 +1,6 @@
 package com.javaee.mypilot.infra.rag.vector;
 
-import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
+import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.DirectoryReader;

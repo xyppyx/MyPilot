@@ -1,6 +1,6 @@
 package com.javaee.mypilot.infra.api;
 
-import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
+import com.javaee.mypilot.core.model.rag.DocumentChunk;
 
 import java.util.List;
 

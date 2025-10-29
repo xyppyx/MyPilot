@@ -1,6 +1,6 @@
 package com.javaee.mypilot.infra.rag;
 
-import com.javaee.mypilot.core.model.rag.document.DocumentChunk;
+import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import com.javaee.mypilot.infra.rag.embedding.EmbeddingService;
 import com.javaee.mypilot.infra.rag.vector.VectorDatabase;
 
