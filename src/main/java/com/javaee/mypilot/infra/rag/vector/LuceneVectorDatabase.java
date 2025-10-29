@@ -27,6 +27,7 @@ public class LuceneVectorDatabase implements VectorDatabase {
     private static final String FIELD_PAGE = "pageNumber";
     private static final String FIELD_TITLE = "title";
     private static final String FIELD_EMBEDDING = "embedding";
+    private static final String FIELD_SOURCE_TYPE = "sourceType"; // STATIC or USER_UPLOADED
 
     private final Directory directory;
     private final StandardAnalyzer analyzer;
@@ -68,6 +69,11 @@ public class LuceneVectorDatabase implements VectorDatabase {
                 if (chunk.getTitle() != null && !chunk.getTitle().isEmpty()) {
                     doc.add(new TextField(FIELD_TITLE, chunk.getTitle(), Field.Store.YES));
                 }
+
+                // 存储文档来源类型
+                String sourceTypeStr = chunk.getSourceType() != null ?
+                    chunk.getSourceType().name() : DocumentChunk.SourceType.USER_UPLOADED.name();
+                doc.add(new StringField(FIELD_SOURCE_TYPE, sourceTypeStr, Field.Store.YES));
 
                 // 存储嵌入向量（序列化为字节）
                 if (chunk.getEmbedding() != null) {
@@ -130,13 +136,20 @@ public class LuceneVectorDatabase implements VectorDatabase {
                 BytesRef embeddingBytes = doc.getBinaryValue(FIELD_EMBEDDING);
                 float[] embedding = byteArrayToFloatArray(embeddingBytes.bytes);
 
+                // 读取 sourceType
+                String sourceTypeStr = doc.get(FIELD_SOURCE_TYPE);
+                DocumentChunk.SourceType sourceType = sourceTypeStr != null ?
+                    DocumentChunk.SourceType.valueOf(sourceTypeStr) :
+                    DocumentChunk.SourceType.USER_UPLOADED;
+
                 DocumentChunk chunk = new DocumentChunk(
                         doc.get(FIELD_ID),
                         doc.get(FIELD_CONTENT),
                         doc.get(FIELD_SOURCE),
                         doc.getField(FIELD_PAGE).numericValue().intValue(),
                         doc.get(FIELD_TITLE),
-                        embedding);
+                        embedding,
+                        sourceType);
 
                 // 设置相似度分数
                 chunk.setSimilarity(scoredDoc.score);

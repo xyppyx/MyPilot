@@ -23,7 +23,7 @@ public class PDFDocumentProcessor implements DocumentProcessor {
     }
 
     @Override
-    public List<DocumentChunk> process(File file) {
+    public List<DocumentChunk> process(File file, DocumentChunk.SourceType sourceType) {
         List<DocumentChunk> chunks = new ArrayList<>();
 
         try (PDDocument document = PDDocument.load(file)) {
@@ -55,7 +55,8 @@ public class PDFDocumentProcessor implements DocumentProcessor {
                                 file.getName(),
                                 pageNum,
                                 title,
-                                embedding);
+                                embedding,
+                                sourceType);
                         chunks.add(chunk);
                     }
                 }

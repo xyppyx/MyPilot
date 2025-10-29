@@ -5,6 +5,14 @@ package com.javaee.mypilot.core.model.rag;
  */
 public class DocumentChunk {
 
+    /**
+     * 文档来源类型
+     */
+    public enum SourceType {
+        STATIC,        // 静态资源（插件内置的PPT/PDF）
+        USER_UPLOADED  // 用户上传的文档
+    }
+
     private String id;
     private String content;
     private String source; // 文件名或文档名
@@ -12,6 +20,7 @@ public class DocumentChunk {
     private String title; // 可选：章节或标题
     private float[] embedding;
     private float similarity; // 相似度分数
+    private SourceType sourceType; // 文档来源类型
 
     public DocumentChunk(String id, String content, String source, int pageNumber, String title, float[] embedding) {
         this.id = id;
@@ -21,6 +30,18 @@ public class DocumentChunk {
         this.title = title;
         this.embedding = embedding;
         this.similarity = 0.0f;
+        this.sourceType = SourceType.USER_UPLOADED; // 默认为用户上传
+    }
+
+    public DocumentChunk(String id, String content, String source, int pageNumber, String title, float[] embedding, SourceType sourceType) {
+        this.id = id;
+        this.content = content;
+        this.source = source;
+        this.pageNumber = pageNumber;
+        this.title = title;
+        this.embedding = embedding;
+        this.similarity = 0.0f;
+        this.sourceType = sourceType;
     }
 
     // Getter & Setter
@@ -78,5 +99,13 @@ public class DocumentChunk {
 
     public void setSimilarity(float similarity) {
         this.similarity = similarity;
+    }
+
+    public SourceType getSourceType() {
+        return sourceType;
+    }
+
+    public void setSourceType(SourceType sourceType) {
+        this.sourceType = sourceType;
     }
 }

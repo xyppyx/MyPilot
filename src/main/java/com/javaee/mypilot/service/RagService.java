@@ -138,7 +138,8 @@ public final class RagService {
             }
 
             System.out.println("发现 " + materialFiles.size() + " 个课程材料文件，开始自动索引...");
-            boolean success = initializeKnowledgeBase(materialFiles);
+            // 显式指定静态资源类型
+            boolean success = initializeKnowledgeBase(materialFiles, DocumentChunk.SourceType.STATIC);
             if (success) {
                 System.out.println("知识库自动加载完成！");
             }
@@ -390,10 +391,11 @@ public final class RagService {
 
     /**
      * 初始化知识库
-     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF, Markdown等）
+     * @param courseMaterialFiles 课程材料文件列表（PPT, PDF 等）
+     * @param sourceType 文档来源类型（STATIC 或 USER_UPLOADED）
      * @return 是否成功
      */
-    public boolean initializeKnowledgeBase(@NotNull List<File> courseMaterialFiles) {
+    public boolean initializeKnowledgeBase(@NotNull List<File> courseMaterialFiles, DocumentChunk.SourceType sourceType) {
         if (!initialized) {
             initialize();
         }
@@ -404,23 +406,22 @@ public final class RagService {
         }
 
         try {
-            System.out.println("开始索引知识库文档...");
+            String sourceTypeName = sourceType == DocumentChunk.SourceType.STATIC ? "静态资源" : "用户上传";
+            System.out.println("开始索引" + sourceTypeName + "文档...");
             List<DocumentChunk> allChunks = new ArrayList<>();
 
             for (File file : courseMaterialFiles) {
                 try {
                     String fileName = file.getName().toLowerCase();
-                    DocumentProcessor processor = null;
 
                     if (fileName.endsWith(".pdf")) {
-                        processor = pdfDocumentProcessor;
-                    } else if (fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
-                        processor = pptDocumentProcessor;
-                    }
-
-                    if (processor != null) {
                         System.out.println("处理文件: " + file.getName());
-                        List<DocumentChunk> chunks = processor.process(file);
+                        List<DocumentChunk> chunks = pdfDocumentProcessor.process(file, sourceType);
+                        allChunks.addAll(chunks);
+                        System.out.println("  - 提取 " + chunks.size() + " 个文档块");
+                    } else if (fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                        System.out.println("处理文件: " + file.getName());
+                        List<DocumentChunk> chunks = pptDocumentProcessor.process(file, sourceType);
                         allChunks.addAll(chunks);
                         System.out.println("  - 提取 " + chunks.size() + " 个文档块");
                     } else {
@@ -433,9 +434,9 @@ public final class RagService {
             }
 
             if (!allChunks.isEmpty()) {
-                System.out.println("索引 " + allChunks.size() + " 个文档块到向量数据库...");
+                System.out.println("索引 " + allChunks.size() + " 个" + sourceTypeName + "文档块到向量数据库...");
                 vectorDatabase.index(allChunks);
-                System.out.println("知识库索引完成！");
+                System.out.println(sourceTypeName + "知识库索引完成！");
                 return true;
             } else {
                 System.out.println("没有找到可索引的文档");
@@ -445,6 +446,135 @@ public final class RagService {
             System.err.println("知识库初始化失败: " + e.getMessage());
             e.printStackTrace();
             return false;
+        }
+    }
+
+    /**
+     * 用户上传文件到知识库
+     * @param files 用户上传的文件列表
+     * @return 是否成功
+     */
+    public boolean uploadFilesToKnowledgeBase(@NotNull List<File> files) {
+        if (!initialized) {
+            initialize();
+        }
+
+        try {
+            // 创建用户上传目录
+            String userUploadPath = configService.getUserUploadPath();
+            File uploadDir = new File(userUploadPath);
+            if (!uploadDir.exists()) {
+                boolean created = uploadDir.mkdirs();
+                if (!created) {
+                    System.err.println("无法创建用户上传目录: " + userUploadPath);
+                    return false;
+                }
+            }
+
+            // 复制文件到用户上传目录
+            List<File> copiedFiles = new ArrayList<>();
+            for (File file : files) {
+                try {
+                    File targetFile = new File(uploadDir, file.getName());
+                    java.nio.file.Files.copy(file.toPath(), targetFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+                    copiedFiles.add(targetFile);
+                    System.out.println("已复制用户文件: " + file.getName());
+                } catch (Exception e) {
+                    System.err.println("复制文件失败 " + file.getName() + ": " + e.getMessage());
+                }
+            }
+
+            if (copiedFiles.isEmpty()) {
+                System.out.println("没有成功复制任何文件");
+                return false;
+            }
+
+            // 使用 USER_UPLOADED 类型索引这些文件
+            boolean success = initializeKnowledgeBase(copiedFiles, DocumentChunk.SourceType.USER_UPLOADED);
+            if (success) {
+                System.out.println("成功上传并索引 " + copiedFiles.size() + " 个用户文件");
+            }
+            return success;
+
+        } catch (Exception e) {
+            System.err.println("上传文件到知识库失败: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * 用户上传文件夹到知识库
+     * @param folder 用户上传的文件夹
+     * @return 是否成功
+     */
+    public boolean uploadFolderToKnowledgeBase(@NotNull File folder) {
+        if (!folder.isDirectory()) {
+            System.err.println("指定的路径不是文件夹: " + folder.getPath());
+            return false;
+        }
+
+        List<File> files = new ArrayList<>();
+        collectSupportedFiles(folder, files);
+
+        if (files.isEmpty()) {
+            System.out.println("文件夹中没有找到支持的文件格式");
+            return false;
+        }
+
+        System.out.println("在文件夹中发现 " + files.size() + " 个支持的文件");
+        return uploadFilesToKnowledgeBase(files);
+    }
+
+    /**
+     * 递归收集文件夹中所有支持的文件
+     */
+    private void collectSupportedFiles(File dir, List<File> result) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+
+        for (File file : files) {
+            if (file.isDirectory()) {
+                collectSupportedFiles(file, result);
+            } else {
+                String fileName = file.getName().toLowerCase();
+                if (fileName.endsWith(".pdf") || fileName.endsWith(".ppt") || fileName.endsWith(".pptx")) {
+                    result.add(file);
+                }
+            }
+        }
+    }
+
+
+    /**
+     * 知识库统计信息
+     */
+    public static class KnowledgeBaseStats {
+        private final int staticDocCount;
+        private final int userUploadedDocCount;
+
+        public KnowledgeBaseStats(int staticDocCount, int userUploadedDocCount) {
+            this.staticDocCount = staticDocCount;
+            this.userUploadedDocCount = userUploadedDocCount;
+        }
+
+        public int getStaticDocCount() {
+            return staticDocCount;
+        }
+
+        public int getUserUploadedDocCount() {
+            return userUploadedDocCount;
+        }
+
+        public int getTotalCount() {
+            return staticDocCount + userUploadedDocCount;
+        }
+
+        @Override
+        public String toString() {
+            return String.format("知识库统计 - 静态资源: %d, 用户上传: %d, 总计: %d",
+                    staticDocCount, userUploadedDocCount, getTotalCount());
         }
     }
 

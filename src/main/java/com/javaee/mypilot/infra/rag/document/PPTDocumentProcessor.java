@@ -25,7 +25,7 @@ public class PPTDocumentProcessor implements DocumentProcessor {
     }
 
     @Override
-    public List<DocumentChunk> process(File file) {
+    public List<DocumentChunk> process(File file, DocumentChunk.SourceType sourceType) {
         List<DocumentChunk> chunks = new ArrayList<>();
         try (FileInputStream fis = new FileInputStream(file);
              XMLSlideShow ppt = new XMLSlideShow(fis)) {
@@ -48,7 +48,8 @@ public class PPTDocumentProcessor implements DocumentProcessor {
                             file.getName(),
                             i + 1, // 页码从1开始
                             title,
-                            embedding);
+                            embedding,
+                            sourceType);
                     chunks.add(chunk);
                 }
             }

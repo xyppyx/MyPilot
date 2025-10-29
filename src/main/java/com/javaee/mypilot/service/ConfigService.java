@@ -44,6 +44,7 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public String defaultProfileName;
         public String knowledgeBasePath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "vector_index";
         public String courseMaterialPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "courseMaterials"; // 课程材料文件夹路径（PPT/PDF）
+        public String userUploadPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "userUploads"; // 用户上传的文档路径
 
         // RAG Embedding 配置
         public String embeddingServiceType = "DashScope"; // DashScope, Zhipu, Local
@@ -139,6 +140,14 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     public String getCourseMaterialPath() {
         return myConfig.courseMaterialPath;
+    }
+
+    public void setUserUploadPath(String path) {
+        myConfig.userUploadPath = path;
+    }
+
+    public String getUserUploadPath() {
+        return myConfig.userUploadPath;
     }
 
     public String getLlmApiType() {
