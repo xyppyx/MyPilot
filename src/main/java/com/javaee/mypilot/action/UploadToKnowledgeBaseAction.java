@@ -38,7 +38,7 @@ public class UploadToKnowledgeBaseAction extends AnAction {
         );
 
         descriptor.setTitle("选择文档上传到知识库");
-        descriptor.setDescription("支持 PDF, PPT, PPTX 格式。可选择多个文件或文件夹。");
+        descriptor.setDescription("支持 PDF, PPT, PPTX,DOCX,TXT,MD格式。可选择多个文件或文件夹。");
 
         // 设置文件过滤器（可选）
         descriptor.withFileFilter(file -> {
@@ -49,7 +49,10 @@ public class UploadToKnowledgeBaseAction extends AnAction {
             return extension != null &&
                    (extension.equalsIgnoreCase("pdf") ||
                     extension.equalsIgnoreCase("ppt") ||
-                    extension.equalsIgnoreCase("pptx"));
+                    extension.equalsIgnoreCase("pptx")||
+                    extension.equalsIgnoreCase("docx") ||
+                    extension.equalsIgnoreCase("txt") ||
+                    extension.equalsIgnoreCase("md"));
         });
 
         // 打开文件选择对话框
