@@ -17,6 +17,9 @@ public class CodeContext {
     public CodeContext() {
     }
 
+    public CodeContext(String s, String s1, String java, int i) {
+    }
+
     // Getters and Setters
     public String getSelectedCode() {
         return selectedCode;

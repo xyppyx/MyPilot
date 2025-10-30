@@ -44,14 +44,21 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:2.0.30")
 
     // Lucene for vector search
-    implementation("org.apache.lucene:lucene-core:9.9.2")
-    implementation("org.apache.lucene:lucene-analysis-common:9.9.2")
+    implementation("org.apache.lucene:lucene-core:9.11.1")
+    implementation("org.apache.lucene:lucene-analysis-common:9.11.1")
 
     // OkHttp for API calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Gson for JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
+
+    // Testing dependencies
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.0")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.0")
+    testImplementation("junit:junit:4.13.2") // JUnit 4 for IntelliJ test framework compatibility
+    testImplementation("org.mockito:mockito-core:5.5.0")
+    testImplementation("org.mockito:mockito-junit-jupiter:5.5.0")
 }
 
 intellijPlatform {
@@ -71,6 +78,22 @@ tasks {
     withType<JavaCompile> {
         sourceCompatibility = "21"
         targetCompatibility = "21"
+    }
+
+    // Configure test task to use JUnit 5
+    test {
+        useJUnitPlatform()
+
+        // Add JVM arguments to fix Lucene MMapDirectory issues
+        jvmArgs(
+            "--add-opens=java.base/java.nio=ALL-UNNAMED",
+            "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED",
+            "-Dorg.apache.lucene.store.MMapDirectory.enableMmapHack=false"
+        )
+
+        // Increase memory for tests
+        minHeapSize = "512m"
+        maxHeapSize = "2048m"
     }
 
     // 确保 resources 目录下的所有文件都被包含（包括 PPT、PDF 等二进制文件）
