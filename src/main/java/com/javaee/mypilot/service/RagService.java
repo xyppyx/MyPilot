@@ -6,8 +6,6 @@ import com.javaee.mypilot.core.consts.Chat;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.chat.CodeContext;
-import com.javaee.mypilot.core.model.rag.Answer;
-import com.javaee.mypilot.core.model.rag.Citation;
 import com.javaee.mypilot.core.model.rag.DocumentChunk;
 import com.javaee.mypilot.infra.api.LlmClient;
 import com.javaee.mypilot.infra.api.RagPrompt;
@@ -20,7 +18,6 @@ import com.javaee.mypilot.infra.rag.embedding.ZhipuEmbeddingService;
 import com.javaee.mypilot.infra.rag.vector.LuceneVectorDatabase;
 import com.javaee.mypilot.infra.rag.vector.VectorDatabase;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.File;
 import java.io.InputStream;
@@ -28,7 +25,6 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
  * RAG (Retrieval-Augmented Generation) 服务
@@ -318,85 +314,6 @@ public final class RagService {
 
     public static RagService getInstance(@NotNull Project project) {
         return project.getService(RagService.class);
-    }
-
-    /**
-     * 处理查询请求
-     * @param question 用户问题
-     * @param codeContext 代码上下文（可为空）
-     * @return Answer 响应
-     */
-    public Answer processQuery(@NotNull String question, @Nullable CodeContext codeContext) {
-        try {
-            if (!initialized) {
-                initialize();
-            }
-
-            // 1. 构建查询（结合问题和代码上下文）
-            String query = buildQuery(question, codeContext);
-
-            // 2. 检索相关文档片段
-            List<DocumentChunk> chunks = retrieveRelevantChunks(query, configService.getRetrievalTopK());
-
-            // 3. 判断是否找到相关材料
-            boolean hasRelevantMaterial = !chunks.isEmpty() &&
-                    chunks.get(0).getSimilarity() >= configService.getRelevanceThreshold();
-
-            if (!hasRelevantMaterial) {
-                // 无相关材料，返回提示
-                String answer = "抱歉，在知识库中没有找到相关的课程材料。\n\n您的问题：" + question;
-                return new Answer(answer, new ArrayList<>(), false);
-            } else {
-                // 有相关材料，构建回答
-                StringBuilder answerBuilder = new StringBuilder();
-                answerBuilder.append("根据课程材料，以下是相关信息：\n\n");
-
-                for (int i = 0; i < Math.min(3, chunks.size()); i++) {
-                    DocumentChunk chunk = chunks.get(i);
-                    answerBuilder.append(i + 1).append(". ").append(chunk.getContent()).append("\n\n");
-                    answerBuilder.append("   来源：").append(chunk.getSource());
-                    answerBuilder.append("，第").append(chunk.getPageNumber()).append("页");
-                    answerBuilder.append("，相似度：").append(String.format("%.2f", chunk.getSimilarity())).append("\n\n");
-                }
-
-                // 构建引用信息
-                List<Citation> citations = buildCitations(chunks);
-
-                return new Answer(answerBuilder.toString(), citations, true);
-            }
-
-        } catch (Exception e) {
-            String errorMsg = "处理查询时出错: " + e.getMessage() + "\n\n请检查 RAG 配置（API Key、知识库路径等）";
-            e.printStackTrace();
-            return new Answer(errorMsg, new ArrayList<>(), false);
-        }
-    }
-
-    /**
-     * 构建查询字符串
-     */
-    private String buildQuery(String question, CodeContext codeContext) {
-        StringBuilder query = new StringBuilder(question);
-
-        if (codeContext != null && codeContext.getSelectedCode() != null) {
-            query.append(" ").append(codeContext.getSelectedCode());
-        }
-
-        return query.toString();
-    }
-
-    /**
-     * 构建引用列表
-     */
-    private List<Citation> buildCitations(List<DocumentChunk> chunks) {
-        return chunks.stream()
-                .map(chunk -> new Citation(
-                        chunk.getSource(),
-                        chunk.getPageNumber(),
-                        chunk.getContent(),
-                        chunk.getSimilarity()
-                ))
-                .collect(Collectors.toList());
     }
 
     /**

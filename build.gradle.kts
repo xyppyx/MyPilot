@@ -44,8 +44,8 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:2.0.30")
 
     // Lucene for vector search
-    implementation("org.apache.lucene:lucene-core:9.9.2")
-    implementation("org.apache.lucene:lucene-analysis-common:9.9.2")
+    implementation("org.apache.lucene:lucene-core:9.11.1")
+    implementation("org.apache.lucene:lucene-analysis-common:9.11.1")
 
     // OkHttp for API calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

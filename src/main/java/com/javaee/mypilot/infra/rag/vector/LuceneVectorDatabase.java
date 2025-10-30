@@ -7,7 +7,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
@@ -41,7 +41,10 @@ public class LuceneVectorDatabase implements VectorDatabase {
      */
     public LuceneVectorDatabase(String indexPath) {
         try {
-            this.directory = FSDirectory.open(Paths.get(indexPath));
+            // Use NIOFSDirectory instead of FSDirectory.open() to avoid MMapDirectory
+            // classloader issues with IntelliJ Platform tests
+            this.directory = new NIOFSDirectory(Paths.get(indexPath));
+
             this.analyzer = new StandardAnalyzer();
 
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
