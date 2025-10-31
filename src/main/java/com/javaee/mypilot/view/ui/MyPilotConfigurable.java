@@ -4,7 +4,7 @@ import com.intellij.openapi.options.Configurable;
 import com.intellij.openapi.options.ConfigurationException;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.service.ConfigService;
-import com.javaee.mypilot.view.settings.MyPilotSettingsPanel;
+import com.javaee.mypilot.view.ui.MyPilotSettingsPanel;
 import org.jetbrains.annotations.Nls;
 import org.jetbrains.annotations.Nullable;
 

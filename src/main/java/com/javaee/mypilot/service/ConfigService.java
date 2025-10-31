@@ -39,9 +39,8 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
      * 用于持久化存储插件配置
      */
     public static class Config {
-        public List<LlmProfile> llmProfiles = new ArrayList<>();
-        public String ragSearchPath;
-        public String defaultProfileName;
+    public List<LlmProfile> llmProfiles = new ArrayList<>();
+    public String defaultProfileName;
         public String knowledgeBasePath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "vector_index";
         public String courseMaterialPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "courseMaterials"; // 课程材料文件夹路径（PPT/PDF）
         public String userUploadPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "userUploads"; // 用户上传的文档路径
@@ -75,6 +74,29 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     @Override
     public void loadState(@NotNull Config config) {
+        // 如果某些字段为空，使用默认值
+        if (config.knowledgeBasePath == null || config.knowledgeBasePath.isEmpty()) {
+            config.knowledgeBasePath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "vector_index";
+        }
+        if (config.courseMaterialPath == null || config.courseMaterialPath.isEmpty()) {
+            config.courseMaterialPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "courseMaterials";
+        }
+        if (config.userUploadPath == null || config.userUploadPath.isEmpty()) {
+            config.userUploadPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "userUploads";
+        }
+        if (config.embeddingServiceType == null || config.embeddingServiceType.isEmpty()) {
+            config.embeddingServiceType = "DashScope";
+        }
+        if (config.embeddingApiKey == null) {
+            config.embeddingApiKey = "";
+        }
+        if (config.retrievalTopK <= 0) {
+            config.retrievalTopK = 5;
+        }
+        if (config.relevanceThreshold <= 0) {
+            config.relevanceThreshold = 0.7;
+        }
+        
         myConfig = config;
     }
 
@@ -84,14 +106,6 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     public List<LlmProfile> getLlmProfiles() {
         return myConfig.llmProfiles;
-    }
-
-    public void setRagSearchPath(String path) {
-        myConfig.ragSearchPath = path;
-    }
-
-    public String getRagSearchPath() {
-        return myConfig.ragSearchPath;
     }
 
     public void setKnowledgeBasePath(String path) {
@@ -147,6 +161,10 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
     }
 
     public String getUserUploadPath() {
+        // 确保总是返回有效的路径，如果配置为空，返回默认路径
+        if (myConfig.userUploadPath == null || myConfig.userUploadPath.isEmpty()) {
+            return System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "userUploads";
+        }
         return myConfig.userUploadPath;
     }
 
