@@ -1,7 +1,5 @@
 package com.javaee.mypilot.service;
 
-import com.intellij.openapi.application.ApplicationManager;
-import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
@@ -508,17 +506,30 @@ public final class RagService {
     }
 
     /**
-     * 清空知识库
+     * 清空知识库（删除所有文档）
      */
     public void clearKnowledgeBase() {
+        clearKnowledgeBase(null);
+    }
+
+    /**
+     * 根据来源类型清空知识库
+     * @param sourceType 文档来源类型（null 表示删除所有文档，STATIC 表示只删除静态资源，USER_UPLOADED 表示只删除用户上传的文档）
+     */
+    public void clearKnowledgeBase(DocumentChunk.SourceType sourceType) {
         if (!initialized || vectorDatabase == null) {
             return;
         }
 
         try {
             if (vectorDatabase instanceof LuceneVectorDatabase) {
-                ((LuceneVectorDatabase) vectorDatabase).clear();
-                System.out.println("知识库已清空");
+                ((LuceneVectorDatabase) vectorDatabase).clear(sourceType);
+                if (sourceType == null) {
+                    System.out.println("知识库已完全清空");
+                } else {
+                    String typeName = sourceType == DocumentChunk.SourceType.STATIC ? "静态资源" : "用户上传";
+                    System.out.println("已清空知识库中的" + typeName + "文档");
+                }
             }
         } catch (Exception e) {
             System.err.println("清空知识库失败: " + e.getMessage());

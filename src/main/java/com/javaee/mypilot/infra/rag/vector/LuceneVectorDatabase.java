@@ -263,11 +263,65 @@ public class LuceneVectorDatabase implements VectorDatabase {
     }
 
     /**
-     * 清空索引
+     * 清空索引（删除所有文档）
      */
     public void clear() {
+        clear(null);
+    }
+
+    /**
+     * 根据来源类型清空索引
+     * @param sourceType 文档来源类型（null 表示删除所有文档）
+     */
+    public void clear(DocumentChunk.SourceType sourceType) {
         try {
-            indexWriter.deleteAll();
+            if (sourceType == null) {
+                // 删除所有文档
+                indexWriter.deleteAll();
+                System.out.println("已删除所有文档");
+            } else {
+                // 根据来源类型删除文档
+                if (indexReader == null) {
+                    refreshReader();
+                }
+
+                int deletedCount = 0;
+                List<Integer> docIdsToDelete = new ArrayList<>();
+
+                // 收集需要删除的文档ID
+                for (int i = 0; i < indexReader.maxDoc(); i++) {
+                    try {
+                        Document doc = indexReader.storedFields().document(i);
+                        String docSourceType = doc.get(FIELD_SOURCE_TYPE);
+
+                        if (docSourceType != null && docSourceType.equals(sourceType.name())) {
+                            docIdsToDelete.add(i);
+                        }
+                    } catch (Exception e) {
+                        // 跳过损坏的文档
+                        continue;
+                    }
+                }
+
+                // 使用 Term 删除文档
+                //无法通过 docId 直接删除，因为 docId 会在索引合并后变化
+                for (int docId : docIdsToDelete) {
+                    try {
+                        Document doc = indexReader.storedFields().document(docId);
+                        String id = doc.get(FIELD_ID);
+                        if (id != null) {
+                            indexWriter.deleteDocuments(new org.apache.lucene.index.Term(FIELD_ID, id));
+                            deletedCount++;
+                        }
+                    } catch (Exception e) {
+                        System.err.println("删除文档失败: " + e.getMessage());
+                    }
+                }
+
+                System.out.println("已删除 " + deletedCount + " 个 " +
+                    (sourceType == DocumentChunk.SourceType.STATIC ? "静态资源" : "用户上传") + " 文档");
+            }
+
             indexWriter.commit();
             refreshReader();
         } catch (IOException e) {
