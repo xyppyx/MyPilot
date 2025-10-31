@@ -282,38 +282,30 @@ public class MyPilotSettingsPanel {
         });
         panel.add(courseMaterialPathField, gbc);
         
-        // 用户上传路径
-        gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.weightx = 0.0;
-        panel.add(new JBLabel("用户上传路径:"), gbc);
-        
-        gbc.gridx = 1;
-        gbc.weightx = 1.0;
-        userUploadPathField = new TextFieldWithBrowseButton();
-        FileChooserDescriptor upDescriptor = new FileChooserDescriptor(false, true, false, false, false, false);
-        userUploadPathField.addActionListener(e -> {
-            com.intellij.openapi.fileChooser.FileChooser.chooseFile(
-                    upDescriptor, project, null,
-                    file -> userUploadPathField.setText(file.getPath())
-            );
-        });
-        userUploadPathField.setToolTipText("用户上传的文档将存储在此路径下");
-        panel.add(userUploadPathField, gbc);
+        // 用户上传路径 - 隐藏此配置项，使用默认路径
+        // 注意：虽然不在 UI 显示，但后端代码仍会使用配置服务中的默认路径
         
         // 上传文档到知识库按钮
         gbc.gridx = 0;
-        gbc.gridy = 3;
+        gbc.gridy = 2;
         gbc.weightx = 0.0;
         gbc.weighty = 0.0;
         gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = JBUI.insets(15, 10, 10, 10);
         
-        JButton uploadButton = new JButton("📤 上传文档到知识库");
+        JButton uploadButton = new JButton("上传文档到知识库");
         uploadButton.setToolTipText("选择文档（PDF, PPT, PPTX, DOC, DOCX, TXT, MD）上传到RAG知识库");
         uploadButton.addActionListener(e -> uploadDocumentsToKnowledgeBase());
         panel.add(uploadButton, gbc);
+        
+        // 查看知识库按钮
+        gbc.gridy = 3;
+        gbc.insets = JBUI.insets(10, 10, 10, 10);
+        JButton viewKnowledgeBaseButton = new JButton("查看知识库文件");
+        viewKnowledgeBaseButton.setToolTipText("查看、删除或添加知识库中的文件");
+        viewKnowledgeBaseButton.addActionListener(e -> openKnowledgeBaseManager());
+        panel.add(viewKnowledgeBaseButton, gbc);
         
         // 添加说明文字
         gbc.gridy = 4;
@@ -325,7 +317,7 @@ public class MyPilotSettingsPanel {
         // 重置为默认值按钮
         gbc.gridy = 5;
         gbc.insets = JBUI.insets(10, 10, 10, 10);
-        JButton resetDefaultsButton = new JButton("🔄 重置为默认值");
+        JButton resetDefaultsButton = new JButton("重置为默认值");
         resetDefaultsButton.setToolTipText("将所有路径配置重置为默认值");
         resetDefaultsButton.addActionListener(e -> resetRagPathsToDefaults());
         panel.add(resetDefaultsButton, gbc);
@@ -494,12 +486,8 @@ public class MyPilotSettingsPanel {
         if (config.courseMaterialPath != null) {
             courseMaterialPathField.setText(config.courseMaterialPath);
         }
-        // 加载用户上传路径，如果为空则使用配置服务返回的默认值
-        String userUploadPath = config.userUploadPath;
-        if (userUploadPath == null || userUploadPath.isEmpty()) {
-            userUploadPath = configService.getUserUploadPath(); // 这会返回默认路径如果配置为空
-        }
-        userUploadPathField.setText(userUploadPath);
+        // 用户上传路径不在 UI 显示，使用配置服务返回的默认值或已有配置
+        // 如果配置中没有，会在需要时使用 ConfigService.getUserUploadPath() 返回默认路径
         
         // 加载 Embedding 配置
         if (config.embeddingServiceType != null) {
@@ -617,7 +605,7 @@ public class MyPilotSettingsPanel {
         if (!profiles.equals(config.llmProfiles)) return true;
         if (!knowledgeBasePathField.getText().equals(config.knowledgeBasePath != null ? config.knowledgeBasePath : "")) return true;
         if (!courseMaterialPathField.getText().equals(config.courseMaterialPath != null ? config.courseMaterialPath : "")) return true;
-        if (!userUploadPathField.getText().equals(config.userUploadPath != null ? config.userUploadPath : "")) return true;
+        // 用户上传路径不在 UI 显示，不检查其修改状态
         
         // 检查 Embedding 配置
         String currentEmbeddingType = (String) embeddingServiceTypeComboBox.getSelectedItem();
@@ -643,7 +631,10 @@ public class MyPilotSettingsPanel {
         
         config.knowledgeBasePath = knowledgeBasePathField.getText();
         config.courseMaterialPath = courseMaterialPathField.getText();
-        config.userUploadPath = userUploadPathField.getText();
+        // 用户上传路径：如果配置中已有值则保留，否则使用默认值
+        if (config.userUploadPath == null || config.userUploadPath.isEmpty()) {
+            config.userUploadPath = configService.getUserUploadPath();
+        }
         
         config.embeddingServiceType = (String) embeddingServiceTypeComboBox.getSelectedItem();
         config.embeddingApiKey = new String(embeddingApiKeyField.getPassword());
@@ -906,25 +897,8 @@ public class MyPilotSettingsPanel {
                                         configService.setUserUploadPath(finalUploadPath);
                                     }
                                     
-                                    // 从配置服务重新读取路径（确保使用最新的配置值）
-                                    String latestUploadPath = configService.getUserUploadPath();
-                                    if (latestUploadPath == null || latestUploadPath.isEmpty()) {
-                                        latestUploadPath = finalUploadPath;
-                                    }
-                                    
-                                    // 更新UI字段显示实际使用的路径
-                                    String currentText = userUploadPathField.getText();
-                                    if (!latestUploadPath.equals(currentText)) {
-                                        userUploadPathField.setText(latestUploadPath);
-                                        // 强制刷新UI组件
-                                        userUploadPathField.revalidate();
-                                        userUploadPathField.repaint();
-                                        // 确保父容器也刷新
-                                        if (userUploadPathField.getParent() != null) {
-                                            userUploadPathField.getParent().revalidate();
-                                            userUploadPathField.getParent().repaint();
-                                        }
-                                    }
+                                    // 用户上传路径不在 UI 显示，配置已在 RagService.uploadFilesToKnowledgeBase() 中自动保存
+                                    // 路径使用 ConfigService.getUserUploadPath() 返回的默认值或已配置的值
                                     
                                     if (finalAllSuccess) {
                                         Messages.showInfoMessage(
@@ -987,16 +961,24 @@ public class MyPilotSettingsPanel {
     }
     
     /**
+     * 打开知识库管理对话框
+     */
+    private void openKnowledgeBaseManager() {
+        KnowledgeBaseManageDialog dialog = new KnowledgeBaseManageDialog(project);
+        dialog.show();
+    }
+    
+    /**
      * 重置 RAG 路径配置为默认值
      */
     private void resetRagPathsToDefaults() {
         int result = JOptionPane.showConfirmDialog(
                 mainPanel,
-                "确定要将所有 RAG 路径配置重置为默认值吗？\n\n" +
+                "确定要将 RAG 路径配置重置为默认值吗？\n\n" +
                 "默认值：\n" +
                 "• 知识库路径：~/.mypilot/vector_index\n" +
                 "• 课程材料路径：~/.mypilot/courseMaterials\n" +
-                "• 用户上传路径：~/.mypilot/userUploads",
+                "• 用户上传路径：~/.mypilot/userUploads（使用默认路径，不在界面显示）",
                 "确认重置",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE
@@ -1009,7 +991,8 @@ public class MyPilotSettingsPanel {
             // 重置为默认值
             knowledgeBasePathField.setText(userHome + separator + ".mypilot" + separator + "vector_index");
             courseMaterialPathField.setText(userHome + separator + ".mypilot" + separator + "courseMaterials");
-            userUploadPathField.setText(userHome + separator + ".mypilot" + separator + "userUploads");
+            // 用户上传路径不在 UI 显示，使用配置服务默认值
+            // 配置会在保存时自动使用 ConfigService.getUserUploadPath() 返回的默认路径
             
             Messages.showInfoMessage(
                     mainPanel,

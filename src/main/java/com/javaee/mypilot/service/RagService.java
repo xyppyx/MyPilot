@@ -1,5 +1,7 @@
 package com.javaee.mypilot.service;
 
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
@@ -541,6 +543,55 @@ public final class RagService {
         } catch (Exception e) {
             return "获取统计信息失败: " + e.getMessage();
         }
+    }
+
+    /**
+     * 获取知识库中的所有文件列表
+     * 
+     * 接口定义：供 UI 层调用
+     * 
+     * 注意：此方法依赖 LuceneVectorDatabase.getAllFiles() 方法
+     * 后端 RAG 同学需要在 LuceneVectorDatabase 中实现 getAllFiles() 方法
+     * 
+     * @return 文件信息列表
+     */
+    public List<LuceneVectorDatabase.FileInfo> getKnowledgeBaseFiles() {
+        // UI 接口：调用底层 LuceneVectorDatabase.getAllFiles() 获取文件列表
+        // TODO: 等待后端实现 LuceneVectorDatabase.getAllFiles() 方法
+        if (!initialized || vectorDatabase == null) {
+            return new ArrayList<>();
+        }
+
+        if (vectorDatabase instanceof LuceneVectorDatabase) {
+            return ((LuceneVectorDatabase) vectorDatabase).getAllFiles();
+        }
+        return new ArrayList<>();
+    }
+
+    /**
+     * 从知识库删除指定文件
+     * 
+     * 接口定义：供 UI 层调用
+     * 
+     * 注意：此方法依赖 LuceneVectorDatabase.deleteBySource() 方法
+     * 后端 RAG 同学需要在 LuceneVectorDatabase 中实现 deleteBySource(String source) 方法
+     * 
+     * @param fileName 文件名
+     * @return 是否成功（删除的文档数量 > 0 表示成功）
+     */
+    public boolean deleteFileFromKnowledgeBase(String fileName) {
+        // UI 接口：调用底层 LuceneVectorDatabase.deleteBySource() 删除文件
+        // TODO: 等待后端实现 LuceneVectorDatabase.deleteBySource() 方法
+        if (!initialized || vectorDatabase == null) {
+            return false;
+        }
+
+        if (vectorDatabase instanceof LuceneVectorDatabase) {
+            int deletedCount = ((LuceneVectorDatabase) vectorDatabase).deleteBySource(fileName);
+            System.out.println("已从知识库删除文件: " + fileName + " (删除了 " + deletedCount + " 个文档块)");
+            return deletedCount > 0;
+        }
+        return false;
     }
 
     /**

@@ -85,6 +85,7 @@ public class UploadToKnowledgeBaseAction extends AnAction {
         ConfigService configService = ConfigService.getInstance(project);
 
         // 异步执行上传任务（避免阻塞UI）
+        // 使用 Task.Backgroundable 在后台线程执行文件操作
         com.intellij.openapi.progress.ProgressManager.getInstance().run(
                 new com.intellij.openapi.progress.Task.Backgroundable(
                         project, "上传文档到知识库", true) {

@@ -290,6 +290,50 @@ public class LuceneVectorDatabase implements VectorDatabase {
     }
 
     /**
+     * 获取知识库中的所有唯一文件列表
+     * 
+     * TODO: 后端 RAG 同学需要实现此方法
+     *
+     * @return 文件信息列表（包含文件名、来源类型、文档块数量）
+     */
+    public List<FileInfo> getAllFiles() {
+        // TODO: 后端同学实现此方法
+        throw new UnsupportedOperationException("getAllFiles() 方法需要后端 RAG 同学实现");
+    }
+
+    /**
+     * 删除指定源文件的所有文档块
+     * 
+     * TODO: 后端 RAG 同学需要实现此方法
+     *
+     * @param source 源文件名
+     * @return 删除的文档数量
+     */
+    public int deleteBySource(String source) {
+        // TODO: 后端同学实现此方法
+        throw new UnsupportedOperationException("deleteBySource() 方法需要后端 RAG 同学实现");
+    }
+
+    /**
+     * 文件信息类
+     */
+    public static class FileInfo {
+        public final String fileName;
+        public final DocumentChunk.SourceType sourceType;
+        public int chunkCount;
+
+        public FileInfo(String fileName, DocumentChunk.SourceType sourceType, int chunkCount) {
+            this.fileName = fileName;
+            this.sourceType = sourceType;
+            this.chunkCount = chunkCount;
+        }
+
+        public String getSourceTypeDisplayName() {
+            return sourceType == DocumentChunk.SourceType.STATIC ? "静态资源" : "用户上传";
+        }
+    }
+
+    /**
      * 内部类：带分数的文档
      */
     private static class ScoredDocument {

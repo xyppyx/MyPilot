@@ -8,11 +8,10 @@ group = "com.javaee"
 version = "1.0-SNAPSHOT"
 
 repositories {
-    //mavenCentral()
-
     maven {
         url = uri("https://maven.aliyun.com/repository/public")
     }
+    mavenCentral() // 作为备用仓库，确保所有依赖都能下载
 
     intellijPlatform {
         defaultRepositories()
@@ -44,8 +43,10 @@ dependencies {
     implementation("org.apache.pdfbox:pdfbox:2.0.30")
 
     // Lucene for vector search
-    implementation("org.apache.lucene:lucene-core:9.11.1")
-    implementation("org.apache.lucene:lucene-analysis-common:9.11.1")
+    // 注意：直接使用 IntelliJ Platform 自带的 Lucene，不单独引入依赖
+    // 这样可以避免版本冲突问题（如 Codec 加载错误）
+    // 平台提供的 Lucene API 会在编译和运行时自动可用
+    // 参考：https://plugins.jetbrains.com/docs/intellij/using-platform-apis.html
 
     // OkHttp for API calls
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
