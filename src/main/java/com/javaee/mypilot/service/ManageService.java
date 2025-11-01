@@ -154,6 +154,68 @@ public final class ManageService {
     public List<String> getAllChatTitles() {
         return chatService.showAllChatTitles();
     }
+
+    /**
+     * 根据标题切换到指定会话并返回所有消息
+     * @param title 会话标题
+     * @return 该会话的所有消息列表，如果会话不存在则返回空列表
+     */
+    public List<ChatMessage> switchToSessionByTitle(String title) {
+        com.javaee.mypilot.core.model.chat.ChatSession session = chatService.getChatSessionByTitle(title);
+        if (session == null) {
+            return new ArrayList<>();
+        }
+        
+        // 切换到该会话
+        sessionId = session.getId();
+        support.firePropertyChange("sessionId", null, sessionId);
+        
+        // 返回该会话的所有消息
+        List<ChatMessage> messages = session.getMessages();
+        return messages != null ? new ArrayList<>(messages) : new ArrayList<>();
+    }
+
+    /**
+     * 根据标题删除聊天会话
+     * @param title 会话标题
+     * @return 是否删除成功
+     */
+    public boolean deleteChatSessionByTitle(String title) {
+        // 先获取会话信息，以便检查是否是当前会话
+        com.javaee.mypilot.core.model.chat.ChatSession session = chatService.getChatSessionByTitle(title);
+        boolean wasCurrentSession = false;
+        if (session != null && session.getId().equals(sessionId)) {
+            wasCurrentSession = true;
+        }
+        
+        // 删除会话
+        boolean deleted = chatService.deleteChatSessionByTitle(title);
+        if (deleted) {
+            // 如果删除的是当前会话，需要重置 sessionId
+            if (wasCurrentSession) {
+                sessionId = null;
+            }
+            // 通知UI更新
+            support.firePropertyChange("sessionDeleted", title, null);
+        }
+        return deleted;
+    }
+
+    /**
+     * 删除所有聊天会话
+     * @return 删除的会话数量
+     */
+    public int deleteAllChatSessions() {
+        // 删除所有会话
+        int deletedCount = chatService.deleteAllChatSessions();
+        if (deletedCount > 0) {
+            // 重置当前会话ID
+            sessionId = null;
+            // 通知UI更新
+            support.firePropertyChange("allSessionsDeleted", deletedCount, null);
+        }
+        return deletedCount;
+    }
     
     public static ManageService getInstance(Project project) {
         return project.getService(ManageService.class);

@@ -33,4 +33,24 @@ public interface IChatRepo {
      * @return 聊天记录标题列表
      */
     List<String> getAllChatSessionTitles();
+
+    /**
+     * 根据ID删除聊天记录
+     * @param sessionId 会话ID
+     * @return 是否删除成功
+     */
+    boolean deleteChatSession(String sessionId);
+
+    /**
+     * 根据标题删除聊天记录
+     * @param title 会话标题
+     * @return 是否删除成功
+     */
+    boolean deleteChatSessionByTitle(String title);
+
+    /**
+     * 删除所有聊天记录
+     * @return 删除的会话数量
+     */
+    int deleteAllChatSessions();
 }

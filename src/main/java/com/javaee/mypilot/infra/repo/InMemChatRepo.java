@@ -66,4 +66,41 @@ public final class InMemChatRepo implements IChatRepo{
                 .map(ChatSession::getTitle)
                 .toList();
     }
+
+    /**
+     * 根据ID删除聊天记录
+     * @param sessionId 会话ID
+     * @return 是否删除成功
+     */
+    @Override
+    public boolean deleteChatSession(String sessionId) {
+        if (sessionId == null || sessionId.trim().isEmpty()) {
+            return false;
+        }
+        return sessions.remove(sessionId) != null;
+    }
+
+    /**
+     * 根据标题删除聊天记录
+     * @param title 会话标题
+     * @return 是否删除成功
+     */
+    @Override
+    public boolean deleteChatSessionByTitle(String title) {
+        if (title == null || title.trim().isEmpty()) {
+            return false;
+        }
+        return sessions.values().removeIf(session -> title.equals(session.getTitle()));
+    }
+
+    /**
+     * 删除所有聊天记录
+     * @return 删除的会话数量
+     */
+    @Override
+    public int deleteAllChatSessions() {
+        int count = sessions.size();
+        sessions.clear();
+        return count;
+    }
 }

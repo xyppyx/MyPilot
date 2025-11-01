@@ -28,7 +28,9 @@ import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * MyPilot 聊天面板
@@ -121,28 +123,24 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         
         // 历史会话按钮
         historyButton = new JButton("历史会话");
-        historyButton.setToolTipText("查看和切换历史会话");
         historyButton.setPreferredSize(new Dimension(90, 28));
         historyButton.addActionListener(e -> showHistoryPopup());
         buttonPanel.add(historyButton);
         
         // 新会话按钮
         newSessionButton = new JButton("新会话");
-        newSessionButton.setToolTipText("开始一个新的对话");
         newSessionButton.setPreferredSize(new Dimension(80, 28));
         newSessionButton.addActionListener(e -> startNewSession());
         buttonPanel.add(newSessionButton);
         
         // 清空按钮
         clearButton = new JButton("清空");
-        clearButton.setToolTipText("清空当前对话历史");
         clearButton.setPreferredSize(new Dimension(70, 28));
         clearButton.addActionListener(e -> clearChat());
         buttonPanel.add(clearButton);
         
         // 设置按钮（使用齿轮图标）
         settingsButton = new JButton("设置");
-        settingsButton.setToolTipText("打开设置对话框");
         settingsButton.setPreferredSize(new Dimension(45, 28));
         settingsButton.addActionListener(e -> openSettings());
         buttonPanel.add(settingsButton);
@@ -297,7 +295,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 manageService.handleRequest(question, chatOpt, codeContext);
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> {
-                    appendToChatHistory("\n❌ 发生错误: " + ex.getMessage() + "\n\n");
+                    appendToChatHistory("\n发生错误: " + ex.getMessage() + "\n\n");
                     sendButton.setEnabled(true);
                 });
             }
@@ -309,7 +307,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void displayUserMessageWithReferences(String question) {
         StringBuilder messageBuilder = new StringBuilder();
-        messageBuilder.append("\n👤 You:\n");
+        messageBuilder.append("\nYou:\n");
         
         // 获取当前的代码引用
         List<CodeReference> references = manageService.getCodeReferences();
@@ -379,11 +377,49 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
-     * 清空聊天历史
+     * 清空当前显示（仅清空UI显示，不删除历史对话）
      */
-    private void clearChat() {
+    private void clearChatDisplay() {
         chatHistoryArea.setText("");
         showWelcomeMessage();
+    }
+    
+    /**
+     * 清空聊天历史（删除所有历史对话）
+     */
+    private void clearChat() {
+        // 确认删除所有历史对话
+        List<String> sessions = manageService.getAllChatTitles();
+        if (sessions == null || sessions.isEmpty()) {
+            // 如果没有历史对话，只清空当前显示
+            clearChatDisplay();
+            return;
+        }
+        
+        // 弹出确认对话框
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            "确定要删除所有历史对话吗？\n共有 " + sessions.size() + " 个会话将被删除。\n此操作无法撤销。",
+            "确认删除所有历史对话",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+        
+        if (result == JOptionPane.YES_OPTION) {
+            int deletedCount = manageService.deleteAllChatSessions();
+            if (deletedCount > 0) {
+                // 清空当前显示
+                clearChatDisplay();
+                
+                // 显示删除成功提示
+                JOptionPane.showMessageDialog(
+                    this,
+                    "已成功删除 " + deletedCount + " 个历史对话",
+                    "提示",
+                    JOptionPane.INFORMATION_MESSAGE
+                );
+            }
+        }
     }
     
     /**
@@ -391,7 +427,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void startNewSession() {
         manageService.startNewSession();
-        clearChat();
+        clearChatDisplay(); // 只清空显示，不删除历史对话
     }
     
     /**
@@ -423,7 +459,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         List<String> sessions = manageService.getAllChatTitles();
         
         // 添加"当前会话"选项
-        JMenuItem currentSessionItem = new JMenuItem("📝 当前会话");
+        JMenuItem currentSessionItem = new JMenuItem("当前会话");
         currentSessionItem.setEnabled(false); // 默认禁用，因为已经在当前会话
         historyPopupMenu.add(currentSessionItem);
         
@@ -440,10 +476,51 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         } else {
             for (String session : sessions) {
                 if (session != null && !session.trim().isEmpty()) {
-                    JMenuItem sessionItem = new JMenuItem("💬 " + session);
-                    sessionItem.addActionListener(e -> {
-                        switchToSession(session);
+                    // 创建自定义菜单项，包含会话名称和删除按钮
+                    JPanel sessionPanel = new JPanel(new BorderLayout(5, 0));
+                    sessionPanel.setOpaque(false);
+                    
+                    // 会话名称标签（可点击）
+                    JLabel sessionLabel = new JLabel(session);
+                    sessionLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    sessionLabel.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            historyPopupMenu.setVisible(false);
+                            switchToSession(session);
+                        }
                     });
+                    sessionPanel.add(sessionLabel, BorderLayout.CENTER);
+                    
+                    // 删除按钮（×）
+                    JLabel deleteLabel = new JLabel("×");
+                    deleteLabel.setFont(deleteLabel.getFont().deriveFont(Font.BOLD, 14f));
+                    deleteLabel.setForeground(new Color(150, 150, 150));
+                    deleteLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                    deleteLabel.setToolTipText("删除此会话");
+                    deleteLabel.addMouseListener(new MouseAdapter() {
+                        @Override
+                        public void mouseClicked(MouseEvent e) {
+                            e.consume(); // 阻止事件传播
+                            deleteSession(session);
+                        }
+                        
+                        @Override
+                        public void mouseEntered(MouseEvent e) {
+                            deleteLabel.setForeground(new Color(220, 50, 50));
+                        }
+                        
+                        @Override
+                        public void mouseExited(MouseEvent e) {
+                            deleteLabel.setForeground(new Color(150, 150, 150));
+                        }
+                    });
+                    sessionPanel.add(deleteLabel, BorderLayout.EAST);
+                    
+                    // 将自定义面板包装为菜单项
+                    JMenuItem sessionItem = new JMenuItem();
+                    sessionItem.setLayout(new BorderLayout());
+                    sessionItem.add(sessionPanel, BorderLayout.CENTER);
                     historyPopupMenu.add(sessionItem);
                 }
             }
@@ -454,14 +531,95 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
+     * 删除指定会话
+     */
+    private void deleteSession(String sessionName) {
+        // 确认删除对话框
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            "确定要删除会话 \"" + sessionName + "\" 吗？\n此操作无法撤销。",
+            "确认删除",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+        
+        if (result == JOptionPane.YES_OPTION) {
+            boolean deleted = manageService.deleteChatSessionByTitle(sessionName);
+            if (deleted) {
+                // 关闭弹出菜单
+                historyPopupMenu.setVisible(false);
+                
+                // 检查当前显示的内容是否是被删除的会话
+                // 如果是，清空显示并显示欢迎消息
+                String currentText = chatHistoryArea.getText();
+                if (currentText.contains("已切换到会话: " + sessionName)) {
+                    chatHistoryArea.setText("");
+                    showWelcomeMessage();
+                }
+                
+                // 显示删除成功提示
+                JOptionPane.showMessageDialog(
+                    this,
+                    "会话已删除",
+                    "提示",
+                    JOptionPane.INFORMATION_MESSAGE
+                );
+            } else {
+                // 显示删除失败提示
+                JOptionPane.showMessageDialog(
+                    this,
+                    "删除会话失败",
+                    "错误",
+                    JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
+    }
+    
+    /**
      * 切换到指定会话
      */
     private void switchToSession(String sessionName) {
         SwingUtilities.invokeLater(() -> {
-            // 显示切换消息
-            appendToChatHistory("\n📋 切换到会话: " + sessionName + "\n\n");
+            // 清空当前聊天历史显示
+            chatHistoryArea.setText("");
             
-            // TODO: 从 ManageService 加载对应会话的聊天记录
+            // 从 ManageService 加载对应会话的聊天记录
+            List<ChatMessage> historyMessages = manageService.switchToSessionByTitle(sessionName);
+            
+            if (historyMessages == null || historyMessages.isEmpty()) {
+                appendToChatHistory("已切换到会话: " + sessionName + "\n");
+                appendToChatHistory("（该会话暂无聊天记录）\n\n");
+                showWelcomeMessage();
+                return;
+            }
+            
+            // 显示会话标题
+            appendToChatHistory("已切换到会话: " + sessionName + "\n\n");
+            appendToChatHistory("────────────────────────────────────\n\n");
+            
+            // 按时间戳排序消息（确保按时间顺序显示）
+            List<ChatMessage> sortedMessages = historyMessages.stream()
+                    .sorted(Comparator.comparing(
+                            ChatMessage::getTimestamp,
+                            Comparator.nullsLast(Comparator.naturalOrder())
+                    ))
+                    .collect(Collectors.toList());
+            
+            // 显示所有历史消息
+            for (ChatMessage message : sortedMessages) {
+                if (message.isUserMessage()) {
+                    // 显示用户消息
+                    appendToChatHistory("You:\n");
+                    appendToChatHistory(message.getContent() + "\n\n");
+                } else {
+                    // 显示助手消息（应用 markdown 清理）
+                    String content = cleanMarkdown(message.getContent());
+                    appendToChatHistory("MyPilot: " + content + "\n\n");
+                }
+            }
+            
+            appendToChatHistory("────────────────────────────────────\n\n");
         });
     }
     
@@ -673,7 +831,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void displayUserMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
             appendToChatHistory("────────────────────────────────────\n");
-            appendToChatHistory("👤 你: " + message.getContent() + "\n");
+            appendToChatHistory("你: " + message.getContent() + "\n");
             appendToChatHistory("────────────────────────────────────\n\n");
         });
     }
@@ -683,11 +841,64 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void displayAssistantMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
-            appendToChatHistory("🤖 MyPilot: " + message.getContent() + "\n\n");
+            String content = cleanMarkdown(message.getContent());
+            appendToChatHistory("MyPilot: " + content + "\n\n");
             
             // 重新启用发送按钮
             sendButton.setEnabled(true);
         });
+    }
+    
+    /**
+     * 清理 markdown 符号（删除 #、* 和 - 符号）
+     * 除了数字开头的标题，其它文字首行缩进4格
+     * 删除所有空行
+     * @param text 原始文本
+     * @return 清理后的文本
+     */
+    private String cleanMarkdown(String text) {
+        if (text == null) {
+            return "";
+        }
+        // 删除所有 # 符号
+        text = text.replace("#", "");
+        // 删除所有 * 符号
+        text = text.replace("*", "");
+        // 删除 - （减号加空格）符号，但保留前面的缩进空格
+        // 使用正则表达式匹配行首的缩进空格 + "- "，替换为只保留缩进空格
+        text = text.replaceAll("(?m)^(\\s*)-\\s+", "$1");
+        
+        // 按行处理，为除数字标题外的其他文字添加首行缩进4格
+        String[] lines = text.split("\n", -1); // -1 保留末尾空行
+        StringBuilder result = new StringBuilder();
+        
+        for (String line : lines) {
+            String trimmedLine = line.trim();
+            
+            // 删除空行
+            if (trimmedLine.isEmpty()) {
+                continue;
+            }
+            
+            // 检查是否以数字开头（1-9，可能是标题）
+            boolean isNumberTitle = trimmedLine.length() > 0 && 
+                                   Character.isDigit(trimmedLine.charAt(0));
+            
+            if (isNumberTitle) {
+                // 数字开头的标题，保持原样（可能已经有格式）
+                result.append(line).append("\n");
+            } else {
+                // 其他文字，统一添加2格缩进（移除原有缩进）
+                result.append("   ").append(trimmedLine).append("\n");
+            }
+        }
+        
+        // 移除最后一个多余的换行符
+        if (result.length() > 0 && result.charAt(result.length() - 1) == '\n') {
+            result.setLength(result.length() - 1);
+        }
+        
+        return result.toString();
     }
     
     /**
@@ -720,7 +931,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void showError(String errorMsg) {
         SwingUtilities.invokeLater(() -> {
-            appendToChatHistory("\n❌ 错误: " + errorMsg + "\n\n");
+            appendToChatHistory("\n错误: " + errorMsg + "\n\n");
         });
     }
     

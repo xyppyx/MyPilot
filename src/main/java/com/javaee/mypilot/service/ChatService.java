@@ -59,6 +59,39 @@ public final class ChatService {
     }
 
     /**
+     * 根据标题获取聊天会话
+     * @param title 会话标题
+     * @return 聊天会话，如果不存在则返回 null
+     */
+    public com.javaee.mypilot.core.model.chat.ChatSession getChatSessionByTitle(String title) {
+        if (title == null || title.trim().isEmpty()) {
+            return null;
+        }
+        
+        return chatRepo.getAllChatSessions().stream()
+                .filter(session -> title.equals(session.getTitle()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * 根据标题删除聊天会话
+     * @param title 会话标题
+     * @return 是否删除成功
+     */
+    public boolean deleteChatSessionByTitle(String title) {
+        return chatRepo.deleteChatSessionByTitle(title);
+    }
+
+    /**
+     * 删除所有聊天会话
+     * @return 删除的会话数量
+     */
+    public int deleteAllChatSessions() {
+        return chatRepo.deleteAllChatSessions();
+    }
+
+    /**
      * 开始一个新的聊天会话
      * @return 新的聊天会话ID
      */
