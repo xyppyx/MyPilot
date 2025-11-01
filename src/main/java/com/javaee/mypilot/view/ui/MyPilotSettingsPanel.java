@@ -978,13 +978,30 @@ public class MyPilotSettingsPanel {
                 "默认值：\n" +
                 "• 知识库路径：~/.mypilot/vector_index\n" +
                 "• 课程材料路径：~/.mypilot/courseMaterials\n" +
-                "• 用户上传路径：~/.mypilot/userUploads（使用默认路径，不在界面显示）",
+                "• 用户上传路径：~/.mypilot/userUploads（使用默认路径，不在界面显示）\n\n" +
+                "注意：重置路径配置不会清空知识库中的文件。如需清空知识库，请在\"查看知识库文件\"中删除。",
                 "确认重置",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE
         );
         
         if (result == JOptionPane.YES_OPTION) {
+            // 询问是否同时清空知识库
+            int clearResult = JOptionPane.showConfirmDialog(
+                    mainPanel,
+                    "是否同时清空知识库中的所有文件？\n\n" +
+                    "• 是：清空所有知识库文件（包括用户上传的文件）\n" +
+                    "• 否：只重置路径配置，保留知识库文件\n" +
+                    "• 取消：取消重置操作",
+                    "是否清空知识库",
+                    JOptionPane.YES_NO_CANCEL_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+            );
+            
+            if (clearResult == JOptionPane.CANCEL_OPTION) {
+                return; // 用户取消
+            }
+            
             String userHome = System.getProperty("user.home");
             String separator = File.separator;
             
@@ -994,11 +1011,62 @@ public class MyPilotSettingsPanel {
             // 用户上传路径不在 UI 显示，使用配置服务默认值
             // 配置会在保存时自动使用 ConfigService.getUserUploadPath() 返回的默认路径
             
-            Messages.showInfoMessage(
-                    mainPanel,
-                    "路径配置已重置为默认值\n\n请在应用设置后点击\"确定\"保存配置。",
-                    "重置成功"
-            );
+            // 如果用户选择清空知识库
+            if (clearResult == JOptionPane.YES_OPTION) {
+                // 在后台线程中执行清空操作
+                com.intellij.openapi.progress.ProgressManager.getInstance().run(
+                    new com.intellij.openapi.progress.Task.Backgroundable(
+                        project, "清空知识库", true) {
+
+                        @Override
+                        public void run(@NotNull com.intellij.openapi.progress.ProgressIndicator indicator) {
+                            indicator.setIndeterminate(true);
+                            indicator.setText("正在清空知识库...");
+
+                            try {
+                                com.javaee.mypilot.service.RagService ragService = 
+                                    com.javaee.mypilot.service.RagService.getInstance(project);
+                                
+                                // 确保 RAG 服务已初始化（如果没有初始化，先初始化）
+                                if (!ragService.isKnowledgeBaseInitialized()) {
+                                    ragService.initialize();
+                                }
+                                
+                                // 清空知识库（包括所有文件）
+                                // clearKnowledgeBase() 会检查是否已初始化，所以这里可以安全调用
+                                ragService.clearKnowledgeBase();
+
+                                // 切换到 EDT 线程显示成功消息
+                                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                                    Messages.showInfoMessage(
+                                            project,
+                                            "路径配置已重置为默认值，知识库已清空。\n\n请在应用设置后点击\"确定\"保存配置。",
+                                            "重置成功"
+                                    );
+                                }, com.intellij.openapi.application.ModalityState.any());
+                            } catch (Exception e) {
+                                System.err.println("清空知识库失败: " + e.getMessage());
+                                e.printStackTrace();
+                                
+                                // 切换到 EDT 线程显示错误消息
+                                com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                                    Messages.showWarningDialog(
+                                            project,
+                                            "路径配置已重置为默认值，但清空知识库时出错: " + e.getMessage() + "\n\n请在应用设置后点击\"确定\"保存配置。",
+                                            "部分成功"
+                                    );
+                                }, com.intellij.openapi.application.ModalityState.any());
+                            }
+                        }
+                    }
+                );
+            } else {
+                Messages.showInfoMessage(
+                        mainPanel,
+                        "路径配置已重置为默认值\n\n请在应用设置后点击\"确定\"保存配置。",
+                        "重置成功"
+                );
+            }
         }
     }
 }

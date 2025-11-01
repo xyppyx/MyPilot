@@ -52,7 +52,34 @@ public class LuceneVectorDatabase implements VectorDatabase {
             IndexWriterConfig config = new IndexWriterConfig(analyzer);
             config.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
 
-            this.indexWriter = new IndexWriter(directory, config);
+            // 尝试创建 IndexWriter，如果锁被占用，等待后重试
+            int maxRetries = 3;
+            int retryDelay = 200; // 毫秒
+            IOException lastException = null;
+            
+            for (int attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                    this.indexWriter = new IndexWriter(directory, config);
+                    break; // 成功创建，退出循环
+                } catch (org.apache.lucene.store.LockObtainFailedException e) {
+                    lastException = e;
+                    if (attempt < maxRetries - 1) {
+                        System.out.println("Lucene 索引锁被占用，等待 " + retryDelay + "ms 后重试 (尝试 " + (attempt + 1) + "/" + maxRetries + ")");
+                        try {
+                            Thread.sleep(retryDelay);
+                            retryDelay *= 2; // 指数退避
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException("初始化 Lucene 索引时被中断: " + e.getMessage(), e);
+                        }
+                    }
+                }
+            }
+            
+            // 如果所有重试都失败，抛出异常
+            if (this.indexWriter == null && lastException != null) {
+                throw new RuntimeException("初始化 Lucene 索引失败: 索引锁被占用，请检查是否有其他进程正在使用索引。路径: " + indexPath, lastException);
+            }
         } catch (IOException e) {
             throw new RuntimeException("初始化 Lucene 索引失败: " + e.getMessage(), e);
         }
@@ -251,16 +278,35 @@ public class LuceneVectorDatabase implements VectorDatabase {
     public void close() {
         try {
             if (indexWriter != null) {
-                indexWriter.close();
+                try {
+                    indexWriter.close();
+                } catch (IOException e) {
+                    System.err.println("关闭 IndexWriter 失败: " + e.getMessage());
+                } finally {
+                    indexWriter = null; // 确保引用被清空
+                }
             }
             if (indexReader != null) {
-                indexReader.close();
+                try {
+                    indexReader.close();
+                } catch (IOException e) {
+                    System.err.println("关闭 IndexReader 失败: " + e.getMessage());
+                } finally {
+                    indexReader = null; // 确保引用被清空
+                }
             }
             if (directory != null) {
-                directory.close();
+                try {
+                    directory.close();
+                } catch (IOException e) {
+                    System.err.println("关闭 Directory 失败: " + e.getMessage());
+                } finally {
+                    // directory 是 final 的，不需要设置为 null
+                }
             }
-        } catch (IOException e) {
-            throw new RuntimeException("关闭 Lucene 资源失败: " + e.getMessage(), e);
+        } catch (Exception e) {
+            System.err.println("关闭 Lucene 资源时发生错误: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

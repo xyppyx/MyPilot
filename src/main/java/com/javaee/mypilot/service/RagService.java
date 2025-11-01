@@ -103,6 +103,68 @@ public final class RagService {
     }
 
     /**
+     * 重新初始化 RAG 系统（当配置更改时调用）
+     * 用于在 embedding 服务类型或 API Key 更改后更新服务
+     */
+    public void reinitialize() {
+        System.out.println("RagService: 检测到配置更改，重新初始化...");
+        
+        try {
+            // 先关闭旧的资源，释放 Lucene 索引锁
+            closeResources();
+            
+            // 短暂延迟，确保 Lucene 索引锁完全释放
+            // 这可以避免在快速重新初始化时出现锁冲突
+            try {
+                Thread.sleep(100); // 100ms 延迟
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            // 重置初始化状态
+            this.initialized = false;
+            
+            // 重新初始化（会重新创建 embedding 服务和相关的文档处理器）
+            initialize();
+            
+            System.out.println("RagService: 重新初始化完成");
+        } catch (Exception e) {
+            System.err.println("重新初始化 RagService 失败: " + e.getMessage());
+            e.printStackTrace();
+            // 即使失败也重置初始化状态，允许下次重试
+            this.initialized = false;
+        }
+    }
+
+    /**
+     * 关闭所有资源
+     */
+    private void closeResources() {
+        try {
+            // 关闭向量数据库（这会释放 Lucene 索引锁）
+            if (vectorDatabase instanceof LuceneVectorDatabase) {
+                ((LuceneVectorDatabase) vectorDatabase).close();
+            }
+            
+            // 清空引用
+            this.vectorDatabase = null;
+            this.embeddingService = null;
+            this.retriever = null;
+            this.pptDocumentProcessor = null;
+            this.pdfDocumentProcessor = null;
+            this.docDocumentProcessor = null;
+            this.txtDocumentProcessor = null;
+            this.markdownDocumentProcessor = null;
+            this.ragPrompt = null;
+            
+            System.out.println("RagService: 已关闭所有资源");
+        } catch (Exception e) {
+            System.err.println("关闭 RagService 资源时出错: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    /**
      * 自动从资源中提取并加载知识库
      */
     private void autoLoadKnowledgeBase() {
