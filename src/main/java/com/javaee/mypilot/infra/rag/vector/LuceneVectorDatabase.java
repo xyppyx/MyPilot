@@ -14,7 +14,9 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 基于 Lucene 的向量数据库实现
@@ -345,27 +347,128 @@ public class LuceneVectorDatabase implements VectorDatabase {
 
     /**
      * 获取知识库中的所有唯一文件列表
-     * 
-     * TODO: 后端 RAG 同学需要实现此方法
      *
      * @return 文件信息列表（包含文件名、来源类型、文档块数量）
      */
     public List<FileInfo> getAllFiles() {
-        // TODO: 后端同学实现此方法
-        throw new UnsupportedOperationException("getAllFiles() 方法需要后端 RAG 同学实现");
+        try {
+            if (indexReader == null) {
+                refreshReader();
+            }
+
+            if (indexReader.numDocs() == 0) {
+                return Collections.emptyList();
+            }
+
+            // 使用 Map 来统计每个文件的信息
+            Map<String, FileInfo> fileMap = new HashMap<>();
+
+            // 遍历所有文档
+            for (int i = 0; i < indexReader.maxDoc(); i++) {
+                try {
+                    Document doc = indexReader.storedFields().document(i);
+                    String source = doc.get(FIELD_SOURCE);
+                    String sourceTypeStr = doc.get(FIELD_SOURCE_TYPE);
+
+                    if (source == null || source.isEmpty()) {
+                        continue;
+                    }
+
+                    // 解析来源类型
+                    DocumentChunk.SourceType sourceType = DocumentChunk.SourceType.USER_UPLOADED;
+                    if (sourceTypeStr != null) {
+                        try {
+                            sourceType = DocumentChunk.SourceType.valueOf(sourceTypeStr);
+                        } catch (IllegalArgumentException e) {
+                            // 如果无法解析，使用默认值
+                            sourceType = DocumentChunk.SourceType.USER_UPLOADED;
+                        }
+                    }
+
+                    // 更新或创建文件信息
+                    FileInfo fileInfo = fileMap.get(source);
+                    if (fileInfo == null) {
+                        fileInfo = new FileInfo(source, sourceType, 0);
+                        fileMap.put(source, fileInfo);
+                    }
+                    fileInfo.chunkCount++;
+                } catch (Exception e) {
+                    // 跳过损坏的文档
+                    continue;
+                }
+            }
+
+            // 转换为列表并返回
+            return new ArrayList<>(fileMap.values());
+        } catch (IOException e) {
+            System.err.println("获取文件列表失败: " + e.getMessage());
+            e.printStackTrace();
+            return Collections.emptyList();
+        }
     }
 
     /**
      * 删除指定源文件的所有文档块
-     * 
-     * TODO: 后端 RAG 同学需要实现此方法
      *
      * @param source 源文件名
      * @return 删除的文档数量
      */
     public int deleteBySource(String source) {
-        // TODO: 后端同学实现此方法
-        throw new UnsupportedOperationException("deleteBySource() 方法需要后端 RAG 同学实现");
+        if (source == null || source.isEmpty()) {
+            return 0;
+        }
+
+        try {
+            if (indexReader == null) {
+                refreshReader();
+            }
+
+            int deletedCount = 0;
+
+            // 收集需要删除的文档ID
+            List<String> docIdsToDelete = new ArrayList<>();
+
+            // 遍历所有文档，找到匹配的源文件
+            for (int i = 0; i < indexReader.maxDoc(); i++) {
+                try {
+                    Document doc = indexReader.storedFields().document(i);
+                    String docSource = doc.get(FIELD_SOURCE);
+
+                    if (docSource != null && docSource.equals(source)) {
+                        String id = doc.get(FIELD_ID);
+                        if (id != null) {
+                            docIdsToDelete.add(id);
+                        }
+                    }
+                } catch (Exception e) {
+                    // 跳过损坏的文档
+                    continue;
+                }
+            }
+
+            // 使用 Term 删除文档
+            for (String docId : docIdsToDelete) {
+                try {
+                    indexWriter.deleteDocuments(new org.apache.lucene.index.Term(FIELD_ID, docId));
+                    deletedCount++;
+                } catch (Exception e) {
+                    System.err.println("删除文档失败: " + e.getMessage());
+                }
+            }
+
+            // 提交更改并刷新 reader
+            if (deletedCount > 0) {
+                indexWriter.commit();
+                refreshReader();
+                System.out.println("已删除文件 " + source + " 的 " + deletedCount + " 个文档块");
+            }
+
+            return deletedCount;
+        } catch (IOException e) {
+            System.err.println("删除文件失败: " + e.getMessage());
+            e.printStackTrace();
+            return 0;
+        }
     }
 
     /**

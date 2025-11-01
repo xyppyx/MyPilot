@@ -46,7 +46,8 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
         setModal(true);
         
         init();
-        refreshFileList();
+        // 延迟刷新，确保 UI 组件已完全创建
+        SwingUtilities.invokeLater(() -> refreshFileList());
     }
 
     @Nullable
@@ -77,13 +78,14 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
         // 文件列表
         listModel = new DefaultListModel<>();
         fileList = new JBList<>(listModel);
-        fileList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        fileList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION); // 支持多选
         fileList.setCellRenderer(new FileInfoCellRenderer());
         
         fileList.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                deleteButton.setEnabled(fileList.getSelectedIndex() >= 0);
+                // 检查是否有选中的文件
+                deleteButton.setEnabled(fileList.getSelectedIndices().length > 0);
             }
         });
 
@@ -106,34 +108,62 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
      * 刷新文件列表
      */
     private void refreshFileList() {
+        // 确保 UI 组件已创建
+        if (statusLabel == null || listModel == null || deleteButton == null) {
+            // 如果 UI 组件还未创建，延迟重试
+            SwingUtilities.invokeLater(() -> refreshFileList());
+            return;
+        }
+        
         statusLabel.setText("正在加载...");
         deleteButton.setEnabled(false);
         
-        // 在后台线程中加载文件列表
-        SwingUtilities.invokeLater(() -> {
-            try {
-                List<LuceneVectorDatabase.FileInfo> files = ragService.getKnowledgeBaseFiles();
-                listModel.clear();
-                
-                if (files.isEmpty()) {
-                    statusLabel.setText("知识库为空");
-                } else {
-                    for (LuceneVectorDatabase.FileInfo fileInfo : files) {
-                        listModel.addElement(fileInfo);
+        // 在 EDT 线程中预先获取当前的 ModalityState
+        final com.intellij.openapi.application.ModalityState modalityState = 
+            com.intellij.openapi.application.ApplicationManager.getApplication().getCurrentModalityState();
+        
+        // 在后台线程中加载文件列表（避免阻塞 EDT）
+        com.intellij.openapi.progress.ProgressManager.getInstance().run(
+            new com.intellij.openapi.progress.Task.Backgroundable(
+                project, "加载文件列表", false) {
+
+                @Override
+                public void run(@NotNull com.intellij.openapi.progress.ProgressIndicator indicator) {
+                    indicator.setIndeterminate(true);
+                    
+                    try {
+                        // 在后台线程中执行耗时操作
+                        List<LuceneVectorDatabase.FileInfo> files = ragService.getKnowledgeBaseFiles();
+                        
+                        // 切换到 EDT 线程更新 UI - 使用预先获取的 ModalityState
+                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                            listModel.clear();
+                            
+                            if (files.isEmpty()) {
+                                statusLabel.setText("知识库为空");
+                            } else {
+                                for (LuceneVectorDatabase.FileInfo fileInfo : files) {
+                                    listModel.addElement(fileInfo);
+                                }
+                                statusLabel.setText(String.format("共 %d 个文件，总计 %d 个文档块",
+                                    files.size(),
+                                    files.stream().mapToInt(f -> f.chunkCount).sum()));
+                            }
+                        }, modalityState);
+                    } catch (Exception e) {
+                        // 切换到 EDT 线程显示错误
+                        com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                            statusLabel.setText("加载失败: " + e.getMessage());
+                            Messages.showErrorDialog(
+                                project,
+                                "加载文件列表失败: " + e.getMessage(),
+                                "错误"
+                            );
+                        }, modalityState);
                     }
-                    statusLabel.setText(String.format("共 %d 个文件，总计 %d 个文档块",
-                        files.size(),
-                        files.stream().mapToInt(f -> f.chunkCount).sum()));
                 }
-            } catch (Exception e) {
-                statusLabel.setText("加载失败: " + e.getMessage());
-                Messages.showErrorDialog(
-                    project,
-                    "加载文件列表失败: " + e.getMessage(),
-                    "错误"
-                );
             }
-        });
+        );
     }
 
     /**
@@ -182,6 +212,10 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
             return;
         }
 
+        // 在 EDT 线程中预先获取当前的 ModalityState
+        final com.intellij.openapi.application.ModalityState modalityState = 
+            com.intellij.openapi.application.ApplicationManager.getApplication().getCurrentModalityState();
+
         // 在后台线程中上传文件
         statusLabel.setText("正在上传文件...");
         com.intellij.openapi.progress.ProgressManager.getInstance().run(
@@ -215,8 +249,8 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
                     indicator.setFraction(1.0);
                     final boolean finalSuccess = success;
                     
-                    // 刷新列表
-                    SwingUtilities.invokeLater(() -> {
+                    // 刷新列表 - 使用预先获取的 ModalityState
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
                         refreshFileList();
                         if (finalSuccess) {
                             Messages.showInfoMessage(
@@ -231,41 +265,90 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
                                 "上传完成"
                             );
                         }
-                    });
+                    }, modalityState);
                 }
             }
         );
     }
 
     /**
-     * 删除选中的文件
+     * 删除选中的文件（支持多选）
      */
     private void deleteSelectedFile() {
-        LuceneVectorDatabase.FileInfo selectedFile = fileList.getSelectedValue();
-        if (selectedFile == null) {
+        // 获取所有选中的文件
+        List<LuceneVectorDatabase.FileInfo> selectedFiles = fileList.getSelectedValuesList();
+        if (selectedFiles == null || selectedFiles.isEmpty()) {
             return;
         }
 
-        // 静态资源不允许删除
-        if (selectedFile.sourceType == com.javaee.mypilot.core.model.rag.DocumentChunk.SourceType.STATIC) {
+        // 过滤出可以删除的文件（排除静态资源）
+        List<LuceneVectorDatabase.FileInfo> filesToDelete = new ArrayList<>();
+        List<String> staticFileNames = new ArrayList<>();
+        
+        for (LuceneVectorDatabase.FileInfo fileInfo : selectedFiles) {
+            if (fileInfo.sourceType == com.javaee.mypilot.core.model.rag.DocumentChunk.SourceType.STATIC) {
+                staticFileNames.add(fileInfo.fileName);
+            } else {
+                filesToDelete.add(fileInfo);
+            }
+        }
+
+        // 如果有静态资源文件被选中，提示用户
+        if (!staticFileNames.isEmpty()) {
+            String staticFilesMsg = staticFileNames.size() > 3 
+                ? String.join("、", staticFileNames.subList(0, 3)) + " 等 " + staticFileNames.size() + " 个"
+                : String.join("、", staticFileNames);
             Messages.showWarningDialog(
                 project,
-                "静态资源文件不能删除",
+                "以下文件是静态资源，不能删除：\n" + staticFilesMsg + "\n\n将跳过这些文件，继续删除其他选中的文件。",
                 "提示"
             );
+        }
+
+        // 如果没有可删除的文件，直接返回
+        if (filesToDelete.isEmpty()) {
             return;
+        }
+
+        // 构建确认对话框消息
+        String confirmMessage;
+        int totalChunks = filesToDelete.stream().mapToInt(f -> f.chunkCount).sum();
+        
+        if (filesToDelete.size() == 1) {
+            LuceneVectorDatabase.FileInfo file = filesToDelete.get(0);
+            confirmMessage = String.format("确定要删除文件 '%s' 吗？\n这将从知识库中删除所有相关的文档块（共 %d 个）。",
+                file.fileName, file.chunkCount);
+        } else {
+            confirmMessage = String.format("确定要删除选中的 %d 个文件吗？\n这将从知识库中删除所有相关的文档块（共 %d 个）。\n\n文件列表：\n",
+                filesToDelete.size(), totalChunks);
+            int maxShow = Math.min(5, filesToDelete.size());
+            for (int i = 0; i < maxShow; i++) {
+                confirmMessage += "  • " + filesToDelete.get(i).fileName + "\n";
+            }
+            if (filesToDelete.size() > maxShow) {
+                confirmMessage += "  ... 还有 " + (filesToDelete.size() - maxShow) + " 个文件\n";
+            }
         }
 
         int result = Messages.showYesNoDialog(
             project,
-            String.format("确定要删除文件 '%s' 吗？\n这将从知识库中删除所有相关的文档块（共 %d 个）。",
-                selectedFile.fileName, selectedFile.chunkCount),
+            confirmMessage,
             "确认删除",
             Messages.getQuestionIcon()
         );
 
         if (result != Messages.YES) {
             return;
+        }
+
+        // 在 EDT 线程中预先获取当前的 ModalityState
+        final com.intellij.openapi.application.ModalityState modalityState = 
+            com.intellij.openapi.application.ApplicationManager.getApplication().getCurrentModalityState();
+
+        // 保存文件名列表用于显示
+        final List<String> fileNames = new ArrayList<>();
+        for (LuceneVectorDatabase.FileInfo fileInfo : filesToDelete) {
+            fileNames.add(fileInfo.fileName);
         }
 
         // 在后台线程中删除文件
@@ -276,27 +359,72 @@ public class KnowledgeBaseManageDialog extends DialogWrapper {
 
                 @Override
                 public void run(@NotNull com.intellij.openapi.progress.ProgressIndicator indicator) {
-                    indicator.setIndeterminate(true);
-                    indicator.setText("删除: " + selectedFile.fileName);
+                    indicator.setIndeterminate(false);
+                    indicator.setFraction(0.0);
 
-                    boolean success = ragService.deleteFileFromKnowledgeBase(selectedFile.fileName);
+                    int successCount = 0;
+                    int failCount = 0;
+                    
+                    try {
+                        for (int i = 0; i < fileNames.size(); i++) {
+                            String fileName = fileNames.get(i);
+                            indicator.setText("删除: " + fileName);
+                            indicator.setFraction((double) i / fileNames.size());
 
-                    SwingUtilities.invokeLater(() -> {
+                            boolean success = ragService.deleteFileFromKnowledgeBase(fileName);
+                            if (success) {
+                                successCount++;
+                            } else {
+                                failCount++;
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println("删除文件时发生错误: " + e.getMessage());
+                        e.printStackTrace();
+                        failCount = fileNames.size() - successCount;
+                    }
+
+                    indicator.setFraction(1.0);
+                    
+                    final int finalSuccessCount = successCount;
+                    final int finalFailCount = failCount;
+                    final int totalCount = fileNames.size();
+
+                    // 使用预先获取的 ModalityState 确保在正确的模态上下文中执行
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
                         refreshFileList();
-                        if (success) {
-                            Messages.showInfoMessage(
-                                project,
-                                "成功删除文件: " + selectedFile.fileName,
-                                "删除完成"
-                            );
-                        } else {
+                        
+                        if (finalFailCount == 0) {
+                            // 全部成功
+                            if (totalCount == 1) {
+                                Messages.showInfoMessage(
+                                    project,
+                                    "成功删除文件: " + fileNames.get(0),
+                                    "删除完成"
+                                );
+                            } else {
+                                Messages.showInfoMessage(
+                                    project,
+                                    String.format("成功删除 %d 个文件", totalCount),
+                                    "删除完成"
+                                );
+                            }
+                        } else if (finalSuccessCount == 0) {
+                            // 全部失败
                             Messages.showErrorDialog(
                                 project,
                                 "删除文件失败",
                                 "错误"
                             );
+                        } else {
+                            // 部分成功
+                            Messages.showWarningDialog(
+                                project,
+                                String.format("成功删除 %d 个文件，%d 个文件删除失败", finalSuccessCount, finalFailCount),
+                                "删除完成"
+                            );
                         }
-                    });
+                    }, modalityState);
                 }
             }
         );
