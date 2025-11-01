@@ -307,7 +307,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void displayUserMessageWithReferences(String question) {
         StringBuilder messageBuilder = new StringBuilder();
-        messageBuilder.append("\nYou:\n");
+        messageBuilder.append("\n👤 You:\n");
         
         // 获取当前的代码引用
         List<CodeReference> references = manageService.getCodeReferences();
@@ -610,12 +610,12 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             for (ChatMessage message : sortedMessages) {
                 if (message.isUserMessage()) {
                     // 显示用户消息
-                    appendToChatHistory("You:\n");
+                    appendToChatHistory("👤 You:\n");
                     appendToChatHistory(message.getContent() + "\n\n");
                 } else {
                     // 显示助手消息（应用 markdown 清理）
                     String content = cleanMarkdown(message.getContent());
-                    appendToChatHistory("MyPilot: " + content + "\n\n");
+                    appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
                 }
             }
             
@@ -831,7 +831,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void displayUserMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
             appendToChatHistory("────────────────────────────────────\n");
-            appendToChatHistory("你: " + message.getContent() + "\n");
+            appendToChatHistory("👤 你: " + message.getContent() + "\n");
             appendToChatHistory("────────────────────────────────────\n\n");
         });
     }
@@ -842,7 +842,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void displayAssistantMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
             String content = cleanMarkdown(message.getContent());
-            appendToChatHistory("MyPilot: " + content + "\n\n");
+            appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
             
             // 重新启用发送按钮
             sendButton.setEnabled(true);
