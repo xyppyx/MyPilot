@@ -287,27 +287,86 @@ public final class RagService {
         List<String> fileNames = new ArrayList<>();
         try {
             ClassLoader classLoader = getClass().getClassLoader();
+            if (classLoader == null) {
+                System.err.println("ClassLoader 为 null");
+                return fileNames;
+            }
 
             // 尝试方法1：通过 getResource 获取目录的 URL
             java.net.URL resourceUrl = classLoader.getResource(resourcePath);
-            if (resourceUrl != null) {
-                String protocol = resourceUrl.getProtocol();
+            
+            if (resourceUrl == null) {
+                // 尝试不带尾部斜杠的路径
+                String altPath = resourcePath.endsWith("/") ? 
+                    resourcePath.substring(0, resourcePath.length() - 1) : resourcePath;
+                resourceUrl = classLoader.getResource(altPath);
+                
+                if (resourceUrl == null) {
+                    System.out.println("无法找到资源目录: " + resourcePath + " 或 " + altPath);
+                    // 尝试列出所有可能的资源
+                    debugResourceSearch(classLoader, "courseMaterials");
+                    return fileNames;
+                }
+            }
 
-                if ("file".equals(protocol)) {
-                    // 开发环境：直接读取文件系统
+            String protocol = resourceUrl.getProtocol();
+            System.out.println("找到资源 URL: " + resourceUrl + ", 协议: " + protocol);
+
+            if ("file".equals(protocol)) {
+                // 开发环境：直接读取文件系统
+                try {
                     File dir = new File(resourceUrl.toURI());
+                    System.out.println("尝试访问文件目录: " + dir.getAbsolutePath() + ", 存在: " + dir.exists());
+                    
                     if (dir.exists() && dir.isDirectory()) {
                         File[] files = dir.listFiles();
+                        System.out.println("目录中的文件数量: " + (files != null ? files.length : 0));
+                        
                         if (files != null) {
                             for (File file : files) {
-                                if (file.isFile() && isSupportedFile(file.getName())) {
-                                    fileNames.add(file.getName());
+                                String fileName = file.getName();
+                                System.out.println("检查文件: " + fileName + ", 是文件: " + file.isFile() + ", 支持: " + isSupportedFile(fileName));
+                                if (file.isFile() && isSupportedFile(fileName)) {
+                                    fileNames.add(fileName);
+                                    System.out.println("添加文件: " + fileName);
                                 }
                             }
                         }
+                    } else {
+                        System.err.println("目录不存在或不是目录: " + dir.getAbsolutePath());
                     }
-                } else if ("jar".equals(protocol)) {
-                    // 生产环境：从 JAR 中读取
+                } catch (java.net.URISyntaxException e) {
+                    System.err.println("URI 转换失败: " + e.getMessage());
+                    // 尝试使用 URL.getPath() 作为备选方案
+                    try {
+                        String path = resourceUrl.getPath();
+                        // 处理 URL 编码（如 %20 表示空格）
+                        path = java.net.URLDecoder.decode(path, "UTF-8");
+                        // Windows 下可能需要移除开头的 /file:/
+                        if (path.startsWith("/") && System.getProperty("os.name").toLowerCase().contains("win")) {
+                            if (path.length() > 1 && path.charAt(1) == ':') {
+                                path = path.substring(1);
+                            }
+                        }
+                        File dir = new File(path);
+                        System.out.println("使用备用路径: " + dir.getAbsolutePath());
+                        if (dir.exists() && dir.isDirectory()) {
+                            File[] files = dir.listFiles();
+                            if (files != null) {
+                                for (File file : files) {
+                                    if (file.isFile() && isSupportedFile(file.getName())) {
+                                        fileNames.add(file.getName());
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception ex) {
+                        System.err.println("备用路径也失败: " + ex.getMessage());
+                    }
+                }
+            } else if ("jar".equals(protocol)) {
+                // 生产环境：从 JAR 中读取
+                try {
                     java.net.JarURLConnection jarConnection = (java.net.JarURLConnection) resourceUrl.openConnection();
                     java.util.jar.JarFile jarFile = jarConnection.getJarFile();
                     java.util.Enumeration<java.util.jar.JarEntry> entries = jarFile.entries();
@@ -325,15 +384,74 @@ public final class RagService {
                             }
                         }
                     }
+                } catch (Exception e) {
+                    System.err.println("读取 JAR 文件失败: " + e.getMessage());
+                    e.printStackTrace();
                 }
             } else {
-                System.out.println("无法找到资源目录: " + resourcePath);
+                System.err.println("未知的 URL 协议: " + protocol);
             }
+            
+            System.out.println("扫描完成，找到 " + fileNames.size() + " 个文件");
         } catch (Exception e) {
             System.err.println("扫描资源目录失败: " + e.getMessage());
             e.printStackTrace();
         }
         return fileNames;
+    }
+
+    /**
+     * 调试方法：搜索资源目录
+     */
+    private void debugResourceSearch(ClassLoader classLoader, String basePath) {
+        try {
+            System.out.println("开始调试资源搜索，基础路径: " + basePath);
+            
+            // 尝试不同的路径变体
+            String[] variations = {
+                basePath,
+                basePath + "/",
+                "/" + basePath,
+                "/" + basePath + "/"
+            };
+            
+            for (String path : variations) {
+                java.net.URL url = classLoader.getResource(path);
+                if (url != null) {
+                    System.out.println("找到资源: " + path + " -> " + url);
+                }
+            }
+            
+            // 尝试直接列出所有资源
+            try {
+                java.net.URL baseUrl = classLoader.getResource(basePath);
+                if (baseUrl != null && "file".equals(baseUrl.getProtocol())) {
+                    File baseDir = new File(baseUrl.toURI());
+                    if (baseDir.exists()) {
+                        System.out.println("基础目录存在: " + baseDir.getAbsolutePath());
+                        File[] subDirs = baseDir.listFiles();
+                        if (subDirs != null) {
+                            for (File subDir : subDirs) {
+                                System.out.println("  子目录/文件: " + subDir.getName() + (subDir.isDirectory() ? " (目录)" : " (文件)"));
+                                if (subDir.isDirectory() && "ppt".equals(subDir.getName())) {
+                                    File[] pptFiles = subDir.listFiles();
+                                    if (pptFiles != null) {
+                                        System.out.println("    PPT 目录中的文件:");
+                                        for (File f : pptFiles) {
+                                            System.out.println("      - " + f.getName());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("调试资源搜索时出错: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("调试资源搜索失败: " + e.getMessage());
+        }
     }
 
     /**
