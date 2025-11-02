@@ -909,7 +909,13 @@ public final class RagService {
             queryContext.question + " " + queryContext.codeContextStr :
             queryContext.question;
 
-        return retrieveRelevantChunks(query, configService.getRetrievalTopK());
+        List<DocumentChunk> chunks = retrieveRelevantChunks(query, configService.getRetrievalTopK());
+
+        // 调试日志：输出检索结果和相似度分数
+        if (chunks.isEmpty()) {
+            System.out.println("警告: 未检索到任何文档块，知识库可能为空");
+        }
+        return chunks;
     }
 
     /**
@@ -929,8 +935,24 @@ public final class RagService {
         }
 
         // 判断是否找到相关知识
+        // 修复：降低相似度阈值判断逻辑，使用更合理的阈值
+        // 余弦相似度范围是 [-1, 1]，对于归一化向量通常在 [0, 1]
+        // 0.5 以上表示相关性较好，0.3-0.5 表示有一定相关性
+        double configuredThreshold = configService.getRelevanceThreshold();
+        double effectiveThreshold = Math.min(configuredThreshold, 0.5); // 最高使用0.5作为阈值
+
         boolean hasRelevantKnowledge = !relevantChunks.isEmpty() &&
-            relevantChunks.get(0).getSimilarity() >= configService.getRelevanceThreshold();
+            relevantChunks.getFirst().getSimilarity() >= effectiveThreshold;
+
+        // 调试日志
+        if (!relevantChunks.isEmpty()) {
+            float topSimilarity = relevantChunks.get(0).getSimilarity();
+            System.out.println("=== RAG 相关性判断 ===");
+            System.out.printf("配置阈值: %.2f, 有效阈值: %.2f, 最高相似度: %.4f%n",
+                configuredThreshold, effectiveThreshold, topSimilarity);
+            System.out.printf("判断结果: %s%n", hasRelevantKnowledge ? "有相关知识" : "无相关知识");
+            System.out.println("=====================");
+        }
 
         // 构建RAG prompt
         String ragPromptStr = buildRagPrompt(
@@ -1014,14 +1036,17 @@ public final class RagService {
      */
     private String buildRagPrompt(String question, String codeContextStr, boolean hasCodeContext,
                                    List<DocumentChunk> relevantChunks, boolean hasRelevantKnowledge) {
-        if (hasCodeContext && hasRelevantKnowledge) {
-            // 有代码上下文 + 有知识库材料
+        // 改进：即使相似度不够高，如果有检索到的文档（相似度 > 0.3），也尝试使用
+        boolean hasAnyChunks = !relevantChunks.isEmpty() && relevantChunks.get(0).getSimilarity() >= 0.3;
+
+        if (hasCodeContext && (hasRelevantKnowledge || hasAnyChunks)) {
+            // 有代码上下文 + 有知识库材料（或有潜在相关材料）
             return ragPrompt.buildPromptWithCodeContext(question, codeContextStr, relevantChunks);
-        } else if (hasCodeContext && !hasRelevantKnowledge) {
+        } else if (hasCodeContext && !hasAnyChunks) {
             // 有代码上下文 + 无知识库材料
             return ragPrompt.buildPromptWithCodeContextOnly(question, codeContextStr);
-        } else if (!hasCodeContext && hasRelevantKnowledge) {
-            // 无代码上下文 + 有知识库材料
+        } else if (!hasCodeContext && (hasRelevantKnowledge || hasAnyChunks)) {
+            // 无代码上下文 + 有知识库材料（或有潜在相关材料）
             return ragPrompt.buildPromptWithContext(question, relevantChunks);
         } else {
             // 无代码上下文 + 无知识库材料

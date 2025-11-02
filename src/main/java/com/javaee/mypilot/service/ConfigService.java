@@ -49,9 +49,10 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public String embeddingServiceType = "DashScope"; // DashScope, Zhipu, Local
         public String embeddingApiKey = "sk-12ffff37c0834dfd8d227eda0b809f91";
 
+
         // RAG 检索配置
         public int retrievalTopK = 5;
-        public double relevanceThreshold = 0.7;
+        public double relevanceThreshold = 0.3;
 
         // LLM API 配置
         public String llmApiType = "DeepSeek"; // DeepSeek, OpenAI, QianWen, ZhiPu, etc.
