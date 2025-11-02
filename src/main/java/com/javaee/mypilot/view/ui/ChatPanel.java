@@ -299,7 +299,15 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 manageService.handleRequest(question, chatOpt, codeContext);
             } catch (Exception ex) {
                 SwingUtilities.invokeLater(() -> {
-                    appendToChatHistory("\n发生错误: " + ex.getMessage() + "\n\n");
+                    // 使用统一的错误处理方法
+                    String currentText = chatHistoryArea.getText();
+                    if (currentText.endsWith("🤖 MyPilot is thinking...\n\n")) {
+                        String newText = currentText.substring(0, currentText.length() - "🤖 MyPilot is thinking...\n\n".length());
+                        chatHistoryArea.setText(newText);
+                        appendToChatHistory("❌ 发生错误: " + ex.getMessage() + "\n\n");
+                    } else {
+                        appendToChatHistory("\n发生错误: " + ex.getMessage() + "\n\n");
+                    }
                     sendButton.setEnabled(true);
                 });
             }
@@ -330,6 +338,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             
             // 添加用户问题
             messageBuilder.append(question).append("\n");
+            
+            // 添加思考状态提示
+            messageBuilder.append("\n🤖 MyPilot is thinking...\n\n");
             
             appendToChatHistory(messageBuilder.toString());
         });
@@ -841,7 +852,18 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void displayAssistantMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
             String content = cleanMarkdown(message.getContent());
-            appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
+            
+            // 替换 "thinking..." 为实际回复
+            String currentText = chatHistoryArea.getText();
+            if (currentText.endsWith("🤖 MyPilot is thinking...\n\n")) {
+                // 移除 "thinking..." 并添加实际回复
+                String newText = currentText.substring(0, currentText.length() - "🤖 MyPilot is thinking...\n\n".length());
+                chatHistoryArea.setText(newText);
+                appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
+            } else {
+                // 如果没有 "thinking..."，直接追加（向后兼容）
+                appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
+            }
             
             // 重新启用发送按钮
             sendButton.setEnabled(true);
@@ -930,7 +952,18 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void showError(String errorMsg) {
         SwingUtilities.invokeLater(() -> {
-            appendToChatHistory("\n错误: " + errorMsg + "\n\n");
+            // 移除 "thinking..." 并显示错误信息
+            String currentText = chatHistoryArea.getText();
+            if (currentText.endsWith("🤖 MyPilot is thinking...\n\n")) {
+                String newText = currentText.substring(0, currentText.length() - "🤖 MyPilot is thinking...\n\n".length());
+                chatHistoryArea.setText(newText);
+                appendToChatHistory("❌ 错误: " + errorMsg + "\n\n");
+            } else {
+                appendToChatHistory("\n错误: " + errorMsg + "\n\n");
+            }
+            
+            // 重新启用发送按钮
+            sendButton.setEnabled(true);
         });
     }
     
