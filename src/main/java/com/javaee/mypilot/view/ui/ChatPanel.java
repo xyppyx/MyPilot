@@ -1,14 +1,12 @@
 package com.javaee.mypilot.view.ui;
 
-import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.EditorFactory;
-import com.intellij.openapi.editor.EditorSettings;
-import com.intellij.openapi.editor.ex.EditorEx;
-import com.intellij.openapi.editor.highlighter.EditorHighlighterFactory;
-import com.intellij.openapi.fileTypes.FileType;
-import com.intellij.openapi.fileTypes.FileTypeManager;
+import com.intellij.openapi.editor.ScrollType;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
@@ -57,10 +55,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private JLabel statusLabel;
     private JPopupMenu historyPopupMenu;  // 历史会话弹出菜单
     
-    // 代码引用相关
+    // 代码引用信息条
     private JPanel codeReferencePanel;
-    private JPanel codeEditorsContainer;  // 存放多个编辑器的容器
-    private List<Editor> codeEditors;  // 存储编辑器实例以便释放
+    private JPanel codeReferencesContainer;
     
     public ChatPanel(Project project) {
         this.project = project;
@@ -81,7 +78,8 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void showWelcomeMessage() {
         appendToChatHistory("欢迎使用 MyPilot - AI Coding Assistant!\n\n");
         appendToChatHistory("功能说明:\n");
-        appendToChatHistory("• 在输入框输入问题，按 Ctrl+Enter 或点击发送\n");
+        appendToChatHistory("• 在输入框输入问题，按 Enter 或点击发送\n");
+        appendToChatHistory("• Shift+Enter 可以换行\n");
         appendToChatHistory("• 在底部选择 ASK 模式进行 RAG 问答\n");
         appendToChatHistory("• 在底部选择 AGENT 模式进行代码辅助\n\n");
     }
@@ -170,47 +168,53 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
-     * 创建底部面板：代码引用区 + 输入区域 + 模式选择
+     * 创建底部面板：代码引用信息条 + 输入区域 + 模式选择
      */
     private JPanel createBottomPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(JBUI.Borders.emptyTop(5));
         
-        // 顶部：代码引用区域（可折叠）
+        // 顶部：代码引用信息条
         codeReferencePanel = createCodeReferencePanel();
         panel.add(codeReferencePanel, BorderLayout.NORTH);
         
-        // 中间：输入控制区（垂直布局）
+        // 输入控制区（垂直布局）
         JPanel inputControlPanel = new JPanel(new BorderLayout(5, 5));
         
         // 上方：输入区域 + 发送按钮
         JPanel inputPanel = new JPanel(new BorderLayout(5, 0));
         
-        inputArea = new JBTextArea(3, 40);
+        inputArea = new JBTextArea(2, 40);
         inputArea.setLineWrap(true);
         inputArea.setWrapStyleWord(true);
         inputArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-        inputArea.setToolTipText("在这里输入你的问题...");
         
-        // 支持 Ctrl+Enter 发送
+        // 支持 Enter 发送
         inputArea.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                if (e.getKeyCode() == KeyEvent.VK_ENTER && e.isControlDown()) {
-                    sendMessage();
-                    e.consume();
+                if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                    if (!e.isShiftDown()) {
+                        sendMessage();
+                        e.consume();
+                    }
+                    // 如果按住 Shift+Enter，允许换行
                 }
             }
         });
         
         JBScrollPane inputScrollPane = new JBScrollPane(inputArea);
+        // 设置滚动面板的高度与发送按钮对齐（40px）
+        inputScrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, 40));
+        inputScrollPane.setMinimumSize(new Dimension(0, 40));
+        inputScrollPane.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
         inputPanel.add(inputScrollPane, BorderLayout.CENTER);
         
         // 右侧：发送按钮
-        JPanel sendPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 5));
+        JPanel sendPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        sendPanel.setPreferredSize(new Dimension(80, 40));
         sendButton = new JButton("发送");
-        sendButton.setToolTipText("发送消息 (Ctrl+Enter)");
-        sendButton.setPreferredSize(new Dimension(80, 60));
+        sendButton.setPreferredSize(new Dimension(80, 40));
         sendButton.addActionListener(e -> sendMessage());
         sendPanel.add(sendButton);
         
@@ -244,23 +248,23 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
-     * 创建代码引用显示面板（使用真实编辑器）
+     * 创建代码引用信息条面板（紧凑样式）
      */
     private JPanel createCodeReferencePanel() {
-        JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(JBUI.Borders.empty(5));
+        JPanel panel = new JPanel(new BorderLayout(2, 2));
+        panel.setBorder(JBUI.Borders.empty(2, 5, 2, 5));
         panel.setVisible(false); // 默认隐藏，有引用时才显示
         
-        // 初始化编辑器列表
-        codeEditors = new ArrayList<>();
+        // 创建容器来存放多个代码引用（使用 FlowLayout 实现横向排列）
+        codeReferencesContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
+        codeReferencesContainer.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
         
-        // 创建容器来存放多个编辑器
-        codeEditorsContainer = new JPanel();
-        codeEditorsContainer.setLayout(new BoxLayout(codeEditorsContainer, BoxLayout.Y_AXIS));
+        // 直接添加容器，不使用滚动条
+        panel.add(codeReferencesContainer, BorderLayout.CENTER);
         
-        JBScrollPane scrollPane = new JBScrollPane(codeEditorsContainer);
-        scrollPane.setPreferredSize(new Dimension(0, 150));
-        panel.add(scrollPane, BorderLayout.CENTER);
+        // 设置面板的最小和首选尺寸，让标签自动调整
+        panel.setMinimumSize(new Dimension(0, 25));
+        panel.setPreferredSize(new Dimension(0, 35));
         
         return panel;
     }
@@ -303,67 +307,32 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     }
     
     /**
-     * 显示用户消息（包含代码引用，编辑器风格）
+     * 显示用户消息（包含代码引用链接）
      */
     private void displayUserMessageWithReferences(String question) {
-        StringBuilder messageBuilder = new StringBuilder();
-        messageBuilder.append("\n👤 You:\n");
-        
-        // 获取当前的代码引用
-        List<CodeReference> references = manageService.getCodeReferences();
-        
-        // 如果有代码引用，以编辑器风格显示
-        if (!references.isEmpty()) {
-            for (int i = 0; i < references.size(); i++) {
-                CodeReference ref = references.get(i);
-                String fileName = extractFileName(ref.getVirtualFileUrl());
-                
-                // 文件头部（类似编辑器的标签）
-                messageBuilder.append("\n╭─────────────────────────────────────────────╮\n");
-                messageBuilder.append(String.format("│ 📄 %s:%d-%d", 
-                    fileName, ref.getStartLine(), ref.getEndLine()));
-                
-                // 填充空格对齐
-                int padding = 44 - fileName.length() - String.valueOf(ref.getStartLine()).length() 
-                             - String.valueOf(ref.getEndLine()).length() - 7;
-                if (padding > 0) {
-                    messageBuilder.append(" ".repeat(padding));
+        SwingUtilities.invokeLater(() -> {
+            StringBuilder messageBuilder = new StringBuilder();
+            messageBuilder.append("\n👤 You:\n");
+            
+            // 获取当前的代码引用
+            List<CodeReference> references = manageService.getCodeReferences();
+            
+            // 如果有代码引用，显示引用链接
+            if (!references.isEmpty()) {
+                messageBuilder.append("\n📎 代码引用:\n");
+                for (CodeReference ref : references) {
+                    String fileName = extractFileName(ref.getVirtualFileUrl());
+                    messageBuilder.append(String.format("  - 📄 %s (行 %d-%d)\n", 
+                        fileName, ref.getStartLine(), ref.getEndLine()));
                 }
-                messageBuilder.append("│\n");
-                messageBuilder.append("├─────────────────────────────────────────────┤\n");
-                
-                // 显示代码内容（带行号，类似编辑器）
-                String[] codeLines = ref.getSelectedCode().split("\n");
-                int lineNum = ref.getStartLine();
-                
-                for (String line : codeLines) {
-                    // 行号（右对齐，4位宽度）
-                    String lineNumStr = String.format("%4d", lineNum);
-                    
-                    // 限制行长度，避免显示过长
-                    String displayLine = line;
-                    if (displayLine.length() > 80) {
-                        displayLine = displayLine.substring(0, 77) + "...";
-                    }
-                    
-                    messageBuilder.append(String.format("│ %s │ %s\n", lineNumStr, displayLine));
-                    lineNum++;
-                }
-                
-                messageBuilder.append("╰─────────────────────────────────────────────╯\n");
-                
-                // 多个引用之间添加间隔
-                if (i < references.size() - 1) {
-                    messageBuilder.append("\n");
-                }
+                messageBuilder.append("\n");
             }
-            messageBuilder.append("\n");
-        }
-        
-        // 添加用户问题
-        messageBuilder.append(question).append("\n");
-        
-        appendToChatHistory(messageBuilder.toString());
+            
+            // 添加用户问题
+            messageBuilder.append(question).append("\n");
+            
+            appendToChatHistory(messageBuilder.toString());
+        });
     }
     
     /**
@@ -670,20 +639,20 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 List<CodeReference> refs = (List<CodeReference>) evt.getNewValue();
                 updateCodeReferences(refs);
                 break;
+                
         }
     }
     
     /**
-     * 更新代码引用显示（使用真实编辑器）
+     * 更新代码引用显示
      */
     private void updateCodeReferences(List<CodeReference> codeReferences) {
         SwingUtilities.invokeLater(() -> {
-            // 释放旧的编辑器
-            for (Editor editor : codeEditors) {
-                EditorFactory.getInstance().releaseEditor(editor);
+            if (codeReferencesContainer == null) {
+                return;
             }
-            codeEditors.clear();
-            codeEditorsContainer.removeAll();
+            
+            codeReferencesContainer.removeAll();
             
             if (codeReferences == null || codeReferences.isEmpty()) {
                 // 没有引用时隐藏面板
@@ -691,124 +660,105 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 return;
             }
             
-            // 显示面板并添加引用
+            // 显示面板并添加引用卡片
             codeReferencePanel.setVisible(true);
             
             for (int i = 0; i < codeReferences.size(); i++) {
                 CodeReference ref = codeReferences.get(i);
-                final int index = i;  // 用于删除操作
+                final int index = i;
                 String fileName = extractFileName(ref.getVirtualFileUrl());
                 
-                // 创建标题面板 - 优化设计
-                JPanel titlePanel = new JPanel(new BorderLayout());
-                titlePanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
-                titlePanel.setBorder(JBUI.Borders.compound(
-                    JBUI.Borders.customLine(new Color(200, 200, 200), 1, 1, 0, 1),
-                    JBUI.Borders.empty(6, 10)
-                ));
-                titlePanel.setBackground(new Color(250, 250, 250));
-                
-                // 文件名标签
-                JLabel fileNameLabel = new JLabel(fileName);
-                fileNameLabel.setFont(fileNameLabel.getFont().deriveFont(Font.BOLD, 12f));
-                fileNameLabel.setForeground(new Color(60, 60, 60));
-                
-                // 行号标签（灰色）
-                JLabel lineRangeLabel = new JLabel(String.format("  (%d-%d)", 
-                    ref.getStartLine(), ref.getEndLine()));
-                lineRangeLabel.setFont(lineRangeLabel.getFont().deriveFont(Font.PLAIN, 11f));
-                lineRangeLabel.setForeground(new Color(120, 120, 120));
-                
-                // 组合标题
-                JPanel titleContent = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-                titleContent.setOpaque(false);
-                titleContent.add(fileNameLabel);
-                titleContent.add(lineRangeLabel);
-                
-                titlePanel.add(titleContent, BorderLayout.WEST);
-                
-                // 添加删除按钮
-                JButton deleteButton = new JButton("×");
-                deleteButton.setFont(deleteButton.getFont().deriveFont(Font.BOLD, 16f));
-                deleteButton.setForeground(new Color(150, 150, 150));
-                deleteButton.setPreferredSize(new Dimension(30, 24));
-                deleteButton.setContentAreaFilled(false);
-                deleteButton.setBorderPainted(false);
-                deleteButton.setFocusPainted(false);
-                deleteButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-                deleteButton.setToolTipText("删除此引用");
-                
-                // 鼠标悬停效果
-                deleteButton.addMouseListener(new MouseAdapter() {
-                    @Override
-                    public void mouseEntered(MouseEvent e) {
-                        deleteButton.setForeground(new Color(220, 50, 50));
-                    }
-                    
-                    @Override
-                    public void mouseExited(MouseEvent e) {
-                        deleteButton.setForeground(new Color(150, 150, 150));
-                    }
-                });
-                
-                deleteButton.addActionListener(e -> manageService.removeCodeReference(index));
-                titlePanel.add(deleteButton, BorderLayout.EAST);
-                
-                codeEditorsContainer.add(titlePanel);
-                
-                // 创建编辑器
-                EditorFactory editorFactory = EditorFactory.getInstance();
-                Document document = editorFactory.createDocument(ref.getSelectedCode());
-                Editor editor = editorFactory.createViewer(document, project);
-                
-                // 根据文件扩展名设置语法高亮
-                if (editor instanceof EditorEx) {
-                    FileType fileType = FileTypeManager.getInstance()
-                        .getFileTypeByFileName(fileName);
-                    ((EditorEx) editor).setHighlighter(
-                        EditorHighlighterFactory.getInstance()
-                            .createEditorHighlighter(project, fileType)
-                    );
-                }
-                
-                // 配置编辑器
-                EditorSettings settings = editor.getSettings();
-                settings.setLineNumbersShown(true);
-                settings.setLineMarkerAreaShown(false);
-                settings.setFoldingOutlineShown(false);
-                settings.setAdditionalColumnsCount(0);
-                settings.setAdditionalLinesCount(0);
-                settings.setRightMarginShown(false);
-                settings.setCaretRowShown(false);
-                
-                if (editor instanceof EditorEx) {
-                    ((EditorEx) editor).setVerticalScrollbarVisible(false);
-                    ((EditorEx) editor).setHorizontalScrollbarVisible(true);
-                }
-                
-                // 计算编辑器高度（每行约20像素，无限制）
-                int lineCount = ref.getSelectedCode().split("\n").length;
-                int editorHeight = lineCount * 20 + 10;
-                
-                // 编辑器组件包装面板（添加边框）
-                JPanel editorWrapper = new JPanel(new BorderLayout());
-                editorWrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, editorHeight));
-                editorWrapper.setBorder(JBUI.Borders.customLine(new Color(200, 200, 200), 0, 1, 1, 1));
-                
-                JComponent editorComponent = editor.getComponent();
-                editorComponent.setPreferredSize(new Dimension(0, editorHeight));
-                editorWrapper.add(editorComponent, BorderLayout.CENTER);
-                
-                codeEditorsContainer.add(editorWrapper);
-                codeEditors.add(editor);
-                
-                // 添加间隔
-                codeEditorsContainer.add(Box.createVerticalStrut(10));
+                // 创建代码引用卡片（紧凑小标签样式）
+                JPanel cardPanel = createCodeReferenceCard(ref, fileName, index);
+                codeReferencesContainer.add(cardPanel);
             }
             
-            codeEditorsContainer.revalidate();
-            codeEditorsContainer.repaint();
+            codeReferencesContainer.revalidate();
+            codeReferencesContainer.repaint();
+            codeReferencePanel.revalidate();
+            codeReferencePanel.repaint();
         });
+    }
+    
+    /**
+     * 创建单个代码引用卡片（紧凑小标签样式，横向布局）
+     */
+    private JPanel createCodeReferenceCard(CodeReference ref, String fileName, int index) {
+        JPanel cardPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
+        cardPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createEmptyBorder(2, 6, 2, 4),
+            null
+        ));
+        cardPanel.setBackground(new Color(43, 145, 175)); // IDEA 主题蓝色
+        cardPanel.setOpaque(true);
+        cardPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22)); // 限制高度
+        
+        // 文件名 + 行号
+        String displayText = String.format("%s (%d-%d)", fileName, ref.getStartLine(), ref.getEndLine());
+        JLabel fileLabel = new JLabel(displayText);
+        fileLabel.setFont(new Font(fileLabel.getFont().getName(), Font.PLAIN, 11));
+        fileLabel.setForeground(Color.WHITE);
+        fileLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        cardPanel.add(fileLabel);
+        
+        // 删除按钮
+        JLabel deleteLabel = new JLabel("×");
+        deleteLabel.setFont(new Font(deleteLabel.getFont().getName(), Font.PLAIN, 14));
+        deleteLabel.setForeground(new Color(255, 255, 255, 180)); // 半透明白色
+        deleteLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        deleteLabel.setToolTipText("删除此引用");
+        
+        // 鼠标悬停效果
+        deleteLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                deleteLabel.setForeground(new Color(255, 200, 200));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                deleteLabel.setForeground(new Color(255, 255, 255, 180));
+            }
+            
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                manageService.removeCodeReference(index);
+                e.consume();
+            }
+        });
+        
+        cardPanel.add(deleteLabel);
+        
+        // 点击整个卡片跳转到代码
+        cardPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getComponent() != deleteLabel && !e.getSource().equals(deleteLabel)) {
+                    navigateToCodeReference(ref);
+                }
+            }
+            
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                cardPanel.setBackground(new Color(43, 145, 175)); // 保持蓝色
+                cardPanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            }
+            
+            @Override
+            public void mouseExited(MouseEvent e) {
+                cardPanel.setBackground(new Color(43, 145, 175));
+                cardPanel.setCursor(Cursor.getDefaultCursor());
+            }
+        });
+        
+        fileLabel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                navigateToCodeReference(ref);
+            }
+        });
+        
+        return cardPanel;
     }
     
     /**
@@ -823,6 +773,55 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             return fileUrl.substring(lastSlash + 1);
         }
         return fileUrl;
+    }
+    
+    /**
+     * 导航到代码引用位置
+     */
+    private void navigateToCodeReference(CodeReference ref) {
+        try {
+            // 根据 virtualFileUrl 获取 VirtualFile
+            VirtualFile virtualFile = null;
+            String url = ref.getVirtualFileUrl();
+            
+            if (url != null && !url.isEmpty()) {
+                // 处理不同格式的 URL
+                if (url.startsWith("file://")) {
+                    virtualFile = com.intellij.openapi.vfs.VirtualFileManager.getInstance().findFileByUrl(url);
+                } else {
+                    // 假设是绝对路径
+                    virtualFile = LocalFileSystem.getInstance().findFileByPath(url);
+                }
+            }
+            
+            if (virtualFile != null && virtualFile.exists()) {
+                // 打开文件并导航到指定行
+                OpenFileDescriptor descriptor = new OpenFileDescriptor(
+                    project, 
+                    virtualFile, 
+                    ref.getStartLine() - 1,  // 行号从0开始
+                    0  // 列号
+                );
+                
+                Editor editor = FileEditorManager.getInstance(project).openTextEditor(descriptor, true);
+                
+                // 高亮选中的代码
+                if (editor != null) {
+                    SwingUtilities.invokeLater(() -> {
+                        // 选中代码块
+                        int startOffset = editor.getDocument().getLineStartOffset(ref.getStartLine() - 1);
+                        int endOffset = editor.getDocument().getLineEndOffset(ref.getEndLine() - 1);
+                        editor.getSelectionModel().setSelection(startOffset, endOffset);
+                        
+                        // 滚动到选中区域
+                        editor.getScrollingModel().scrollToCaret(ScrollType.CENTER);
+                    });
+                }
+            }
+        } catch (Exception e) {
+            // 导航失败，记录错误但不影响用户体验
+            System.err.println("导航到代码引用失败: " + e.getMessage());
+        }
     }
     
     /**
