@@ -50,7 +50,11 @@ public final class DiffManager {
 
         // 使用 IntelliJ Platform 的线程池异步执行
         return CompletableFuture.runAsync(() -> {
+            System.out.println("处理代码变更，操作数量: " + codeActions.size());
+
             for (CodeAction action : codeActions) {
+
+                System.out.println("处理代码操作: " + action);
                 if (action == null) continue;
                 
                 // 根据不同的操作类型处理

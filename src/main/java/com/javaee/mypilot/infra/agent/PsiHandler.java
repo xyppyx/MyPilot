@@ -3,21 +3,20 @@ package com.javaee.mypilot.infra.agent;
 
 import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.components.Service;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.*;
+import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.CodeReference;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-
-import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VirtualFileManager;
-import com.intellij.openapi.editor.Document;
-import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.util.concurrency.AppExecutorUtil;
 
 /**
  * PSI 管理器，负责处理与 PSI（Program Structure Interface）相关的操作，

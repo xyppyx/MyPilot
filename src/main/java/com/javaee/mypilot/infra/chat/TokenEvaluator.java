@@ -5,7 +5,6 @@ import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
 
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import java.util.regex.Pattern;
 
 /**

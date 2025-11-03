@@ -64,6 +64,8 @@ public final class HistoryCompressor {
      */
     public CompletableFuture<ChatMeta> compressAsync(ChatSession chatSession) {
 
+        System.out.println("开始压缩聊天记录，Session ID: " + chatSession.getId());
+
         String prompt = buildPrompt(chatSession);
 
         CompletableFuture<String> responseFuture;
@@ -75,8 +77,13 @@ public final class HistoryCompressor {
 
         return responseFuture
                 .thenApply(this::parseLlmResponse)
+                .thenApply(meta -> {
+                    System.out.println("成功压缩聊天记录，Session ID: " + chatSession.getId());
+                    System.out.println("生成的 ChatMeta: " + GSON.toJson(meta));
+                    return meta;
+                })
                 .exceptionally(ex -> {
-                    System.err.println("LLM 压缩或解析过程中发生错误: " + ex.getMessage());
+                    System.out.println("LLM 压缩或解析过程中发生错误: " + ex.getMessage());
                     // 返回一个默认值或重新抛出更具体的异常
                     throw new RuntimeException("Chat compression failed", ex);
                 });

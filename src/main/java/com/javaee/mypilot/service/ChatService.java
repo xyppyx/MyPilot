@@ -118,10 +118,12 @@ public final class ChatService {
             if (chatSession == null) {
                 throw new IllegalArgumentException("Invalid session ID: " + sessionId);
             }
+            System.out.println("step1.1: 成功获取聊天会话，Session ID: " + sessionId);
 
             // 2. 添加用户消息
             ChatMessage userMessage = new ChatMessage(ChatMessage.Type.USER, message);
             chatSession.addMessage(userMessage);
+            System.out.println("step1.2: 成功添加用户消息，内容: " + message);
 
             // 3. 更新token消耗量 (CPU 密集型，保持同步)
             Integer token = tokenEvaluator.estimateTokens(userMessage.getContent());
@@ -131,6 +133,7 @@ public final class ChatService {
                 currentUsage = 0;
             }
             chatSession.setTokenUsage(token + currentUsage);
+            System.out.println("step1.3: 成功更新token消耗量，当前总量: " + chatSession.getTokenUsage());
 
             return chatSession;
         }, appExecutors.getCpuExecutor());
@@ -154,6 +157,7 @@ public final class ChatService {
         }
 
         if (tokenEvaluator.isThresholdReached(tokenUsage)) {
+            System.out.println("step2.1: 压缩任务已启动，Session ID: " + chatSession.getId());
             // 如果需要压缩，启动异步压缩任务
             compressionFuture = historyCompressor.compressAsync(chatSession)
                     .exceptionally(
@@ -179,6 +183,7 @@ public final class ChatService {
         // 等待两个任务完成，然后更新 chatSession 并返回它
         return compressionFuture.thenCombine(codeContextFuture, (v, codeContexts) -> {
             // 两个 Future 都完成后执行
+            System.out.println("step2全部完成");
             chatSession.setCodeContexts(codeContexts);
             return chatSession;
         });
@@ -214,6 +219,9 @@ public final class ChatService {
      * @return 聊天回复消息
      */
     public CompletableFuture<ChatMessage> handleRequestAsync(String sessionId, ChatOpt chatOpt, String message, List<CodeReference> codeReferences) {
+
+        System.out.println("开始处理聊天请求，Session ID: " + sessionId + ", ChatOpt: " + chatOpt);
+
         // 任务 1: 设置聊天会话
         return setupChatSessionAsync(sessionId, message)
                 // 任务 2: 并发处理压缩和代码上下文
@@ -223,6 +231,11 @@ public final class ChatService {
                 // 任务 3: 调用相应服务处理请求
                 .thenCompose(chatSession ->
                     handleServiceRequestAsync(chatSession, chatOpt)
-                );
+                )
+                .thenApply(responseMessage -> {
+                    System.out.println("完成聊天请求处理，Session ID: " + sessionId);
+                    System.out.println("产生的回复消息: " + responseMessage.getContent());
+                    return responseMessage;
+                });
     }
 }
