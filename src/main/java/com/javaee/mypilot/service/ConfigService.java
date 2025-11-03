@@ -91,11 +91,14 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         if (config.embeddingApiKey == null) {
             config.embeddingApiKey = "";
         }
+        // 确保检索参数使用合理的默认值
         if (config.retrievalTopK <= 0) {
             config.retrievalTopK = 5;
         }
+        // 如果阈值 <=0，重置为默认值 0.3
+        // 注意：>0.5 的值也允许，实际使用时会在 RagService 中被限制为 0.5
         if (config.relevanceThreshold <= 0) {
-            config.relevanceThreshold = 0.7;
+            config.relevanceThreshold = 0.3;
         }
         
         myConfig = config;

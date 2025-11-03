@@ -53,6 +53,7 @@ public class MyPilotSettingsPanel {
     
     // Embedding 配置
     private JComboBox<String> embeddingServiceTypeComboBox;
+    private JBLabel embeddingApiKeyLabel;
     private JBPasswordField embeddingApiKeyField;
     
     // 检索配置
@@ -359,7 +360,8 @@ public class MyPilotSettingsPanel {
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.weightx = 0.0;
-        panel.add(new JBLabel("API Key:"), gbc);
+        embeddingApiKeyLabel = new JBLabel("API Key:");
+        panel.add(embeddingApiKeyLabel, gbc);
         
         gbc.gridx = 1;
         gbc.weightx = 1.0;
@@ -379,7 +381,7 @@ public class MyPilotSettingsPanel {
                 "<b>说明：</b><br>" +
                 "• DashScope：阿里云百炼 Embedding 服务（推荐）<br>" +
                 "• Zhipu：智谱AI Embedding 服务<br>" +
-                "• Local：本地模型，无需 API Key</body></html>");
+                "• Local：使用本地实现的embedding方法，无需 API Key（不准确，建议使用专业embedding服务）</body></html>");
         panel.add(embeddingHelpLabel, gbc);
         
         // 添加空白区域
@@ -397,11 +399,16 @@ public class MyPilotSettingsPanel {
     private void updateEmbeddingApiKeyFieldState() {
         String serviceType = (String) embeddingServiceTypeComboBox.getSelectedItem();
         boolean isLocal = "Local".equals(serviceType);
-        embeddingApiKeyField.setEnabled(!isLocal);
+        
+        // 隐藏或显示 API Key 标签和输入框
+        embeddingApiKeyLabel.setVisible(!isLocal);
+        embeddingApiKeyField.setVisible(!isLocal);
+        
         if (isLocal) {
             // Local 类型不需要 API Key，但不清空已有文本（保持用户设置）
             embeddingApiKeyField.setToolTipText("Local 类型不需要 API Key，此字段将被忽略");
         } else {
+            embeddingApiKeyField.setEnabled(true);
             embeddingApiKeyField.setToolTipText("请输入 " + serviceType + " 的 API Key");
         }
     }
@@ -434,8 +441,7 @@ public class MyPilotSettingsPanel {
         
         gbc.gridx = 1;
         gbc.weightx = 1.0;
-        relevanceThresholdSpinner = new JSpinner(new SpinnerNumberModel(0.7, 0.0, 1.0, 0.05));
-        relevanceThresholdSpinner.setToolTipText("文档相似度低于此值将不使用知识库内容，默认 0.7");
+        relevanceThresholdSpinner = new JSpinner(new SpinnerNumberModel(0.3, 0.0, 1.0, 0.05));
         panel.add(relevanceThresholdSpinner, gbc);
         
         // 说明文字
@@ -446,11 +452,22 @@ public class MyPilotSettingsPanel {
         JBLabel retrievalHelpLabel = new JBLabel("<html><body style='color: gray; font-size: 11px;'>" +
                 "<b>说明：</b><br>" +
                 "• 检索数量 (Top K)：从知识库中检索最相关的前 K 个文档片段<br>" +
-                "• 相关度阈值：相似度低于此值的文档不会被使用，默认 0.7</body></html>");
+                "• 相关度阈值：相似度低于此值的文档不会被使用。建议范围：0.3-0.5，默认 0.3<br>" +
+                "&nbsp;&nbsp;&nbsp;<span>注意：阈值过高会导致检索不到相关材料。设置超过 0.5 时，实际使用时会被限制为 0.5</span></body></html>");
         panel.add(retrievalHelpLabel, gbc);
         
-        // 添加空白区域
+        // 重置为默认值按钮
+        gbc.gridx = 0;
         gbc.gridy = 3;
+        gbc.gridwidth = 2;
+        gbc.insets = JBUI.insets(10, 10, 10, 10);
+        JButton resetRetrievalDefaultsButton = new JButton("重置为默认值");
+        resetRetrievalDefaultsButton.setToolTipText("将检索参数重置为默认值（Top K: 5, 相关度阈值: 0.3）");
+        resetRetrievalDefaultsButton.addActionListener(e -> resetRetrievalParamsToDefaults());
+        panel.add(resetRetrievalDefaultsButton, gbc);
+        
+        // 添加空白区域
+        gbc.gridy = 4;
         gbc.gridwidth = 1;
         gbc.weighty = 1.0;
         panel.add(Box.createVerticalGlue(), gbc);
@@ -499,9 +516,12 @@ public class MyPilotSettingsPanel {
             embeddingApiKeyField.setText(config.embeddingApiKey);
         }
         
-        // 加载检索配置
-        retrievalTopKSpinner.setValue(config.retrievalTopK);
-        relevanceThresholdSpinner.setValue(config.relevanceThreshold);
+        // 加载检索配置（使用默认值确保初始化时正确）
+        int topK = config.retrievalTopK > 0 ? config.retrievalTopK : 5;
+        double threshold = (config.relevanceThreshold > 0 && config.relevanceThreshold <= 1.0) 
+                          ? config.relevanceThreshold : 0.3;
+        retrievalTopKSpinner.setValue(topK);
+        relevanceThresholdSpinner.setValue(threshold);
     }
     
     private void loadSelectedProfile() {
@@ -966,6 +986,22 @@ public class MyPilotSettingsPanel {
     private void openKnowledgeBaseManager() {
         KnowledgeBaseManageDialog dialog = new KnowledgeBaseManageDialog(project);
         dialog.show();
+    }
+    
+    /**
+     * 重置检索参数为默认值
+     */
+    private void resetRetrievalParamsToDefaults() {
+        retrievalTopKSpinner.setValue(5);
+        relevanceThresholdSpinner.setValue(0.3);
+        Messages.showInfoMessage(
+                mainPanel,
+                "检索参数已重置为默认值：\n" +
+                "• 检索数量 (Top K): 5\n" +
+                "• 相关度阈值: 0.3\n\n" +
+                "请在应用设置后点击\"确定\"保存配置。",
+                "重置成功"
+        );
     }
     
     /**
