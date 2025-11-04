@@ -257,13 +257,35 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         // 创建容器来存放多个代码引用（使用 FlowLayout 实现横向排列）
         codeReferencesContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 5));
         codeReferencesContainer.setBorder(BorderFactory.createEmptyBorder(3, 5, 3, 5));
+        // 设置固定高度（标签高度），宽度初始不设置（会在更新时根据内容动态设置）
+        int labelHeight = 40;
+        codeReferencesContainer.setPreferredSize(new Dimension(0, labelHeight));
         
-        // 直接添加容器，不使用滚动条
-        panel.add(codeReferencesContainer, BorderLayout.CENTER);
+        // 将容器包装在滚动面板中，支持水平滚动
+        JBScrollPane scrollPane = new JBScrollPane(codeReferencesContainer);
+        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setViewportBorder(BorderFactory.createEmptyBorder());
         
-        // 设置面板的最小和首选尺寸，让标签自动调整
-        panel.setMinimumSize(new Dimension(0, 25));
-        panel.setPreferredSize(new Dimension(0, 35));
+        // 获取水平滚动条并设置滚动速度
+        JScrollBar horizontalScrollBar = scrollPane.getHorizontalScrollBar();
+        // 设置单元增量（鼠标滚轮或方向键滚动时的距离），减小值使滚动更慢
+        horizontalScrollBar.setUnitIncrement(1);
+        // 设置块增量（点击滚动条轨道时的滚动距离），减小值使点击轨道时滚动更慢
+        horizontalScrollBar.setBlockIncrement(5);
+        
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        // 设置固定高度（标签高度 + 滚动条高度），确保滚动条显示在标签下方
+        // 滚动条高度约15-20像素，总共约55-60像素
+        int scrollBarHeight = 18;
+        int totalHeight = labelHeight + scrollBarHeight;
+        panel.setMinimumSize(new Dimension(0, totalHeight));
+        panel.setPreferredSize(new Dimension(0, totalHeight));
+        
+        // 设置滚动面板的首选高度，确保为滚动条预留空间
+        scrollPane.setPreferredSize(new Dimension(Integer.MAX_VALUE, totalHeight));
         
         return panel;
     }
@@ -683,8 +705,43 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 codeReferencesContainer.add(cardPanel);
             }
             
+            // 重新验证布局，让容器根据内容自动调整大小
             codeReferencesContainer.revalidate();
             codeReferencesContainer.repaint();
+            
+            // 延迟计算容器宽度，确保所有组件都已布局完成
+            SwingUtilities.invokeLater(() -> {
+                // 先让容器布局一次，获取实际内容宽度
+                codeReferencesContainer.validate();
+                
+                // 计算所有卡片的实际宽度
+                int totalContentWidth = 0;
+                Component[] components = codeReferencesContainer.getComponents();
+                for (Component comp : components) {
+                    if (comp.isVisible()) {
+                        Dimension compSize = comp.getPreferredSize();
+                        totalContentWidth += compSize.width + 5; // 加上间距
+                    }
+                }
+                // 加上容器的左右边距和边框
+                totalContentWidth += 10; // 左右边距约10像素
+                
+                // 获取滚动面板的视口宽度
+                Container parent = codeReferencesContainer.getParent();
+                if (parent instanceof JViewport) {
+                    int viewportWidth = ((JViewport) parent).getWidth();
+                    if (viewportWidth > 0) {
+                        // 如果内容宽度超过视口宽度，设置容器宽度为内容宽度（触发滚动）
+                        // 否则设置为视口宽度（不滚动）
+                        // 高度保持固定40像素（标签高度）
+                        int containerWidth = Math.max(totalContentWidth, viewportWidth);
+                        int labelHeight = 40;
+                        codeReferencesContainer.setPreferredSize(new Dimension(containerWidth, labelHeight));
+                        codeReferencesContainer.revalidate();
+                    }
+                }
+            });
+            
             codeReferencePanel.revalidate();
             codeReferencePanel.repaint();
         });
@@ -701,7 +758,8 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         ));
         cardPanel.setBackground(new Color(43, 145, 175)); // IDEA 主题蓝色
         cardPanel.setOpaque(true);
-        cardPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22)); // 限制高度
+        // 限制高度为固定值，宽度根据内容自动调整
+        cardPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         
         // 文件名 + 行号
         String displayText = String.format("%s (%d-%d)", fileName, ref.getStartLine(), ref.getEndLine());

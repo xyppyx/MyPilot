@@ -57,5 +57,25 @@
             <!-- 添加到编辑器右键菜单 -->
             <add-to-group group-id="EditorPopupMenu" anchor="last"/>
         </group>
+        
+        <!-- 文件右键菜单组：MyPilot -->
+        <group id="MyPilot.ProjectViewPopupMenu" text="MyPilot" popup="true">
+            <!-- 添加文件代码引用到聊天 -->
+            <action id="MyPilot.AddFileCodeReference"
+                    class="com.javaee.mypilot.view.action.AddFileCodeReferenceAction"
+                    text="添加文件代码到聊天"
+                    description="将整个文件的所有代码添加到 MyPilot 聊天引用区">
+            </action>
+            
+            <!-- 添加文件夹代码引用到聊天 -->
+            <action id="MyPilot.AddDirectoryCodeReference"
+                    class="com.javaee.mypilot.view.action.AddDirectoryCodeReferenceAction"
+                    text="添加文件夹代码到聊天"
+                    description="将文件夹下所有子文件的所有代码添加到 MyPilot 聊天引用区">
+            </action>
+            
+            <!-- 添加到项目文件树右键菜单 -->
+            <add-to-group group-id="ProjectViewPopupMenu" anchor="last"/>
+        </group>
     </actions>
 </idea-plugin>
