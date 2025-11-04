@@ -56,9 +56,9 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
         // LLM API 配置
         public String llmApiType = "DeepSeek"; // DeepSeek, OpenAI, QianWen, ZhiPu, etc.
-        public String llmApiKey = "sk-7e94674b9a784bf29b85af0ebc92b9d8";
-        public String llmApiEndpoint = "https://api.deepseek.com/v1/chat/completions"; // DeepSeek API
-        public String llmModel = "deepseek-chat"; // deepseek-chat, gpt-3.5-turbo, qwen-plus, glm-4, etc.
+        public String llmApiKey = "0fuChNmfaLrHbWvLZYgsn6TgUAuBSCxdqPQFEqBvpbzYCyH_oLJXpgs0a6Xwpd71-6D5kwBPbp3CNtTM4Q8tcQ";
+        public String llmApiEndpoint = "https://api.modelarts-maas.com/v1/chat/completions"; // DeepSeek API
+        public String llmModel = "DeepSeek-V3"; // deepseek-chat, gpt-3.5-turbo, qwen-plus, glm-4, etc.
     }
 
     private Config myConfig = new Config();

@@ -51,7 +51,10 @@ public final class PsiHandler {
         ReadAction.nonBlocking(() -> fetchCodeContext(codeReferences))
             .inSmartMode(project)  // 在智能模式下执行，确保索引已准备好
             .submit(AppExecutorUtil.getAppExecutorService())  // 提交到应用线程池
-            .onSuccess(result -> future.complete(result))  // 成功时完成 Future
+            .onSuccess(result -> {
+                System.out.println("PsiHandler: 成功提取代码上下文，共 " + result.size() + " 条。");
+                future.complete(result);
+            })  // 成功时完成 Future
             .onError(throwable -> future.completeExceptionally(throwable));  // 失败时传递异常
         
         return future;
@@ -127,14 +130,41 @@ public final class PsiHandler {
                             int contextStartOffset = doc.getLineStartOffset(contextStartLine);
                             int contextEndOffset = doc.getLineEndOffset(contextEndLine);
 
-                            String surrounding = doc.getText().substring(contextStartOffset, contextEndOffset);
+                            // 计算选中代码的起止偏移（优先偏移量，回退到行范围）
+                            int selStart = -1;
+                            int selEnd = -1;
+                            if (ref.getStartOffset() >= 0 && ref.getEndOffset() > ref.getStartOffset()) {
+                                selStart = Math.max(0, ref.getStartOffset());
+                                selEnd = Math.min(fileText.length(), ref.getEndOffset());
+                            } else if (ref.getStartLine() >= 0 && ref.getEndLine() >= ref.getStartLine()) {
+                                int sl = Math.min(ref.getStartLine(), doc.getLineCount() - 1);
+                                int el = Math.min(ref.getEndLine(), doc.getLineCount() - 1);
+                                selStart = doc.getLineStartOffset(Math.max(0, sl));
+                                selEnd = doc.getLineEndOffset(Math.max(0, el));
+                            }
+
+                            // 与上下文窗口求交集并替换为 <skip selected code>
+                            String surrounding;
+                            if (selStart >= 0 && selEnd > selStart && !(selEnd <= contextStartOffset || selStart >= contextEndOffset)) {
+                                int prefixStart = contextStartOffset;
+                                int prefixEnd = Math.max(contextStartOffset, selStart);
+                                int suffixStart = Math.min(contextEndOffset, selEnd);
+                                int suffixEnd = contextEndOffset;
+
+                                String prefix = fileText.substring(prefixStart, prefixEnd);
+                                String suffix = fileText.substring(suffixStart, suffixEnd);
+                                surrounding = prefix + "<skip selected code>" + suffix;
+                            } else {
+                                // 选中范围无效或不在上下文窗口内，直接返回上下文
+                                surrounding = fileText.substring(contextStartOffset, contextEndOffset);
+                            }
+
                             ctx.setSurroundingCode(surrounding);
                         } else {
                             // 无法获取 Document，使用整个文件内容作为上下文
                             ctx.setSurroundingCode(fileText);
                         }
 
-                        ctx.setSelectedCode(selected);
                         ctx.setFileName(vf.getName());
 
                         // 获取 package 名称
@@ -157,17 +187,15 @@ public final class PsiHandler {
 
                     } else {
                         // 无法解析 PSI 文件, 仅设置选中代码和文件名
-                        ctx.setSelectedCode(selected);
                         ctx.setFileName(vf.getName());
                     }
                 } else {
                     // 无法找到虚拟文件, 仅设置选中代码
-                    ctx.setSelectedCode(selected);
                     if (vurl != null) ctx.setFileName(vurl);
                 }
             } catch (Exception e) {
                 // 处理异常，继续下一个引用
-                ctx.setSelectedCode(selected);
+                System.err.println("PsiHandler: 处理代码引用时出错: " + e.getMessage());
             }
 
             contexts.add(ctx);

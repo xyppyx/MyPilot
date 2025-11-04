@@ -117,7 +117,6 @@ public class ChatSession {
     public String buildCodeContextPrompt() {
         StringBuilder prompt = new StringBuilder();
         if (codeContexts != null && !codeContexts.isEmpty()) {
-            prompt.append("代码上下文:\n");
             for (CodeContext ctx : codeContexts) {
                 prompt.append(ctx.formatContext()).append("\n---\n");
             }

@@ -7,7 +7,6 @@ package com.javaee.mypilot.core.model.chat;
 public class CodeContext {
 
     private CodeReference sourceReference;
-    private String selectedCode;        // 选中的代码
     private String fileName;            // 文件名
     private String packageName;         // 包名
     private String className;           // 类名
@@ -18,14 +17,6 @@ public class CodeContext {
     }
 
     // Getters and Setters
-    public String getSelectedCode() {
-        return selectedCode;
-    }
-
-    public void setSelectedCode(String selectedCode) {
-        this.selectedCode = selectedCode;
-    }
-
     public String getFileName() {
         return fileName;
     }
@@ -80,7 +71,10 @@ public class CodeContext {
     public String formatContext() {
         StringBuilder sb = new StringBuilder();
         if (sourceReference != null) {
-            sb.append(sourceReference.toString()).append("\n");
+            sb.append("\nSelected Code:\n```java\n").append(sourceReference).append("\n```");
+        }
+        if (packageName != null) {
+            sb.append("Package: ").append(packageName).append("\n");
         }
         if (fileName != null) {
             sb.append("File: ").append(fileName).append("\n");
@@ -91,22 +85,10 @@ public class CodeContext {
         if (methodName != null) {
             sb.append("Method: ").append(methodName).append("\n");
         }
-        if (selectedCode != null && !selectedCode.isEmpty()) {
-            sb.append("\nSelected Code:\n```java\n").append(selectedCode).append("\n```");
+        if (surroundingCode != null) {
+            sb.append("Surrounding Code:\n```java\n").append(surroundingCode).append("\n```");
         }
         return sb.toString();
-    }
-
-    @Override
-    public String toString() {
-        return "CodeContext{" +
-                "fileName='" + fileName + '\'' +
-                ", packageName='" + packageName + '\'' +
-                ", className='" + className + '\'' +
-                ", methodName='" + methodName + '\'' +
-                ", selectedCode='" + selectedCode + '\'' +
-                ", surroundingCode='" + surroundingCode + '\'' +
-                '}';
     }
 }
 

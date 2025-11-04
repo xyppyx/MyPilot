@@ -2,11 +2,10 @@ package com.javaee.mypilot.service;
 
 
 import com.intellij.openapi.components.Service;
-
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.enums.ChatOpt;
-import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
+import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.CodeReference;
 import org.jetbrains.annotations.NotNull;
 
@@ -14,7 +13,6 @@ import java.beans.PropertyChangeListener;
 import java.beans.PropertyChangeSupport;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * 会话管理器
@@ -89,6 +87,7 @@ public final class ManageService {
     public void addCodeReference(CodeReference codeReference) {
         if (codeReference != null) {
             codeReferences.add(codeReference);
+            System.out.println("添加代码引用: " + codeReference.toString());
             // 通知 View 层更新代码引用显示
             support.firePropertyChange("codeReferencesUpdated", null, new ArrayList<>(codeReferences));
         }

@@ -57,7 +57,7 @@ public final class AgentService {
         String codeContext = chatSession.buildCodeContextPrompt();
         String userMessage = chatSession.getLastMessage().getContent();
         String prompt = AgentPrompt.buildPrompt(codeContext, sessionContext, userMessage);
-        System.out.println("Agent模式提示词: " + prompt);
+        System.out.println("\n\nAgent模式提示词: " + prompt + "\n\n");
 
         // 异步调用llm client
         try {
@@ -120,7 +120,7 @@ public final class AgentService {
             System.out.println("解析LLM AGENT响应: " + response);
             return GSON.fromJson(response, AgentResponse.class);
         } catch (JsonSyntaxException e) {
-            return new AgentResponse("无法解析大语言模型的响应: " + e.getMessage(), null);
+            return new AgentResponse("无法解析大语言模型的响应: " + e.getMessage(), null, null);
         }
     }
     

@@ -169,6 +169,7 @@ public final class ChatService {
                     )
                     .thenAccept(compressedHistory -> {
                         // 副作用：更新 chatSession 状态（在 compressionFuture 的线程中执行）
+                        System.out.println("step2.1: 压缩任务已完成, 压缩后" + compressedHistory.toString());
                         chatSession.setMeta(compressedHistory);
                         chatSession.setOffset(chatSession.getMessageCount());
                     }).thenRun(() -> {}); // 确保返回 Void 类型
