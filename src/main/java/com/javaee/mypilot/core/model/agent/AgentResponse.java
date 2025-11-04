@@ -1,6 +1,6 @@
 package com.javaee.mypilot.core.model.agent;
 
-import com.javaee.mypilot.core.enums.CodeOpt;
+import com.google.gson.annotations.SerializedName;
 
 import java.util.List;
 
@@ -11,6 +11,7 @@ import java.util.List;
 public class AgentResponse {
 
     private String explanation;                 // 语言解释部分
+    @SerializedName("actions")
     private List<CodeAction> codeActions;       // 代码部分
 
     public AgentResponse() {

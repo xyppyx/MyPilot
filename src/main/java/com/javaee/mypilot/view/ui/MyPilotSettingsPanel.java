@@ -37,11 +37,9 @@ public class MyPilotSettingsPanel {
     
     // LLM 配置
     private JComboBox<LlmPreset> llmTypeComboBox;
-    private JBTextField llmProfileNameField;
     private JBPasswordField llmApiKeyField;
     private JBTextField llmApiUrlField;
     private JBTextField llmModelField;
-    private JComboBox<String> defaultProfileComboBox;
     private DefaultListModel<String> profileListModel;
     private JList<String> profileList;
     private List<ConfigService.LlmProfile> profiles;
@@ -49,7 +47,6 @@ public class MyPilotSettingsPanel {
     // RAG 配置
     private TextFieldWithBrowseButton knowledgeBasePathField;
     private TextFieldWithBrowseButton courseMaterialPathField;
-    private TextFieldWithBrowseButton userUploadPathField;
     
     // Embedding 配置
     private JComboBox<String> embeddingServiceTypeComboBox;
@@ -150,17 +147,16 @@ public class MyPilotSettingsPanel {
         formPanel.add(llmTypeComboBox, gbc);
         row++;
         
-        
-        // 档案名称
+        // Model
         gbc.gridx = 0;
         gbc.gridy = row;
         gbc.weightx = 0.0;
-        formPanel.add(new JBLabel("档案名称:"), gbc);
+        formPanel.add(new JBLabel("模型名称:"), gbc);
         
         gbc.gridx = 1;
         gbc.weightx = 1.0;
-        llmProfileNameField = new JBTextField();
-        formPanel.add(llmProfileNameField, gbc);
+        llmModelField = new JBTextField();
+        formPanel.add(llmModelField, gbc);
         row++;
         
         // API Key
@@ -187,30 +183,6 @@ public class MyPilotSettingsPanel {
         formPanel.add(llmApiUrlField, gbc);
         row++;
         
-        // Model
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.weightx = 0.0;
-        formPanel.add(new JBLabel("模型名称:"), gbc);
-        
-        gbc.gridx = 1;
-        gbc.weightx = 1.0;
-        llmModelField = new JBTextField();
-        formPanel.add(llmModelField, gbc);
-        row++;
-        
-        // 默认档案选择
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.weightx = 0.0;
-        formPanel.add(new JBLabel("默认档案:"), gbc);
-        
-        gbc.gridx = 1;
-        gbc.weightx = 1.0;
-        defaultProfileComboBox = new JComboBox<>();
-        formPanel.add(defaultProfileComboBox, gbc);
-        row++;
-        
         // 说明文字
         gbc.gridx = 0;
         gbc.gridy = row;
@@ -220,7 +192,7 @@ public class MyPilotSettingsPanel {
                 "<b>使用说明:</b><br>" +
                 "1. 从「LLM 类型」下拉框选择预设服务（推荐使用<span style='color: #2196F3;'>免费服务</span>）<br>" +
                 "2. 填写对应服务的 API Key<br>" +
-                "3. 点击「保存」保存配置<br>" +
+                "3. API URL 和模型名称会根据选择的类型自动填充，也可手动修改<br>" +
                 "4. 可创建多个档案用于不同场景<br>" +
                 "<br><b>推荐免费服务:</b> 阿里云百炼、DeepSeek、通义千问、智谱AI、SiliconFlow" +
                 "</body></html>");
@@ -485,15 +457,33 @@ public class MyPilotSettingsPanel {
         profiles.clear();
         profiles.addAll(config.llmProfiles);
         
-        profileListModel.clear();
-        defaultProfileComboBox.removeAllItems();
+        // 确保档案名称与模型名称一致
         for (ConfigService.LlmProfile profile : profiles) {
-            profileListModel.addElement(profile.name);
-            defaultProfileComboBox.addItem(profile.name);
+            if (profile.model != null && !profile.model.trim().isEmpty()) {
+                profile.name = profile.model;
+            } else if (profile.name == null || profile.name.trim().isEmpty()) {
+                profile.name = "新配置档案";
+            }
         }
         
-        if (config.defaultProfileName != null) {
-            defaultProfileComboBox.setSelectedItem(config.defaultProfileName);
+        profileListModel.clear();
+        for (ConfigService.LlmProfile profile : profiles) {
+            profileListModel.addElement(profile.name);
+        }
+        
+        // 恢复默认配置文件的选中状态
+        if (config.defaultProfileName != null && !config.defaultProfileName.isEmpty()) {
+            for (int i = 0; i < profiles.size(); i++) {
+                if (config.defaultProfileName.equals(profiles.get(i).name)) {
+                    profileList.setSelectedIndex(i);
+                    loadSelectedProfile();
+                    break;
+                }
+            }
+        } else if (!profiles.isEmpty()) {
+            // 如果没有默认配置，选中第一个
+            profileList.setSelectedIndex(0);
+            loadSelectedProfile();
         }
         
         // 加载 RAG 配置
@@ -528,10 +518,18 @@ public class MyPilotSettingsPanel {
         int selectedIndex = profileList.getSelectedIndex();
         if (selectedIndex >= 0 && selectedIndex < profiles.size()) {
             ConfigService.LlmProfile profile = profiles.get(selectedIndex);
-            llmProfileNameField.setText(profile.name);
             llmApiKeyField.setText(profile.apiKey);
             llmApiUrlField.setText(profile.apiUrl);
             llmModelField.setText(profile.model);
+            
+            // 根据 API URL 或模型名称匹配预设类型
+            for (LlmPreset preset : LlmPreset.values()) {
+                if (preset.getDefaultApiUrl().equals(profile.apiUrl) || 
+                    preset.getDefaultModel().equals(profile.model)) {
+                    llmTypeComboBox.setSelectedItem(preset);
+                    break;
+                }
+            }
         }
     }
     
@@ -540,11 +538,6 @@ public class MyPilotSettingsPanel {
         if (selectedPreset != null && selectedPreset != LlmPreset.CUSTOM) {
             llmApiUrlField.setText(selectedPreset.getDefaultApiUrl());
             llmModelField.setText(selectedPreset.getDefaultModel());
-            
-            String currentName = llmProfileNameField.getText();
-            if (currentName == null || currentName.trim().isEmpty() || currentName.equals("新配置档案")) {
-                llmProfileNameField.setText(selectedPreset.getDisplayName());
-            }
         }
     }
     
@@ -553,19 +546,20 @@ public class MyPilotSettingsPanel {
         
         LlmPreset selectedPreset = (LlmPreset) llmTypeComboBox.getSelectedItem();
         if (selectedPreset != null && selectedPreset != LlmPreset.CUSTOM) {
-            newProfile.name = selectedPreset.getDisplayName();
             newProfile.apiUrl = selectedPreset.getDefaultApiUrl();
             newProfile.model = selectedPreset.getDefaultModel();
         } else {
-            newProfile.name = "新配置档案";
             newProfile.apiUrl = "";
             newProfile.model = "";
         }
+        // 模型名称即为档案名称
+        newProfile.name = newProfile.model != null && !newProfile.model.isEmpty() 
+                ? newProfile.model 
+                : "新配置档案";
         newProfile.apiKey = "";
         
         profiles.add(newProfile);
         profileListModel.addElement(newProfile.name);
-        defaultProfileComboBox.addItem(newProfile.name);
         
         profileList.setSelectedIndex(profiles.size() - 1);
     }
@@ -581,12 +575,9 @@ public class MyPilotSettingsPanel {
             );
             
             if (result == JOptionPane.YES_OPTION) {
-                String removedName = profiles.get(selectedIndex).name;
                 profiles.remove(selectedIndex);
                 profileListModel.remove(selectedIndex);
-                defaultProfileComboBox.removeItem(removedName);
                 
-                llmProfileNameField.setText("");
                 llmApiKeyField.setText("");
                 llmApiUrlField.setText("");
                 llmModelField.setText("");
@@ -600,16 +591,18 @@ public class MyPilotSettingsPanel {
             ConfigService.LlmProfile profile = profiles.get(selectedIndex);
             String oldName = profile.name;
             
-            profile.name = llmProfileNameField.getText();
             profile.apiKey = new String(llmApiKeyField.getPassword());
             profile.apiUrl = llmApiUrlField.getText();
             profile.model = llmModelField.getText();
             
-            profileListModel.set(selectedIndex, profile.name);
-            
+            // 模型名称即为档案名称
+            String newName = profile.model != null && !profile.model.trim().isEmpty() 
+                    ? profile.model.trim() 
+                    : "新配置档案";
+            profile.name = newName;
+
             if (!oldName.equals(profile.name)) {
-                defaultProfileComboBox.removeItem(oldName);
-                defaultProfileComboBox.addItem(profile.name);
+                profileListModel.set(selectedIndex, profile.name);
             }
             
             JOptionPane.showMessageDialog(mainPanel, "配置已保存", "成功", JOptionPane.INFORMATION_MESSAGE);
@@ -647,7 +640,15 @@ public class MyPilotSettingsPanel {
         
         config.llmProfiles.clear();
         config.llmProfiles.addAll(profiles);
-        config.defaultProfileName = (String) defaultProfileComboBox.getSelectedItem();
+        // 设置默认配置文件名：使用当前选中的配置，如果没有选中则使用第一个配置
+        int selectedIndex = profileList.getSelectedIndex();
+        if (selectedIndex >= 0 && selectedIndex < profiles.size()) {
+            config.defaultProfileName = profiles.get(selectedIndex).name;
+        } else if (!profiles.isEmpty()) {
+            config.defaultProfileName = profiles.get(0).name;
+        } else {
+            config.defaultProfileName = null;
+        }
         
         config.knowledgeBasePath = knowledgeBasePathField.getText();
         config.courseMaterialPath = courseMaterialPathField.getText();

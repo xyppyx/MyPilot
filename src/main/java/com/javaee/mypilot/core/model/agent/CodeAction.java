@@ -1,5 +1,6 @@
 package com.javaee.mypilot.core.model.agent;
 
+import com.google.gson.annotations.SerializedName;
 import com.javaee.mypilot.core.enums.CodeOpt;
 
 /**
@@ -7,11 +8,17 @@ import com.javaee.mypilot.core.enums.CodeOpt;
  */
 public class CodeAction {
 
+    @SerializedName("type")
     private CodeOpt opt;            // 代码操作类型
+    @SerializedName("filePath")
     private String filePath;        // 代码文件路径
+    @SerializedName("startLine")
     private int startLine;          // 代码操作起始行
+    @SerializedName("endLine")
     private int endLine;            // 代码操作结束行
+    @SerializedName("oldCode")
     private String oldCode;         // 旧代码内容
+    @SerializedName("newCode")
     private String newCode;         // 新代码内容
 
     public CodeAction() {

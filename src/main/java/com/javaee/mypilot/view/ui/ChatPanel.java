@@ -7,7 +7,6 @@ import com.intellij.openapi.fileEditor.OpenFileDescriptor;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.ui.components.JBList;
 import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
@@ -16,6 +15,7 @@ import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.CodeReference;
 import com.javaee.mypilot.service.ManageService;
+import com.javaee.mypilot.service.AgentService;
 
 import javax.swing.*;
 import java.awt.*;
@@ -25,7 +25,6 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -867,6 +866,15 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             
             // 重新启用发送按钮
             sendButton.setEnabled(true);
+            
+            // 如果是AGENT模式，添加使用提示
+            if (manageService.getCurrentOpt() == ChatOpt.AGENT) {
+                // 如果有代码更改，添加使用提示
+                AgentService agentService = project.getService(AgentService.class);
+                if (agentService != null && !agentService.getLastCodeActions().isEmpty()) {
+                    appendToChatHistory("💡 提示：已打开diff窗口显示代码更改建议。\n");
+                }
+            }
         });
     }
     
