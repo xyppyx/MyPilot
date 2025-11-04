@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -63,7 +64,8 @@ public final class AgentService {
             return llmClient.chatAsync(prompt)
                     .thenApply(this::parseLlmResponse)
                     .thenApply(agentResponse -> {
-                        ChatMessage responseMessage = new ChatMessage(ChatMessage.Type.ASSISTANT, agentResponse.getExplanation());
+                        String formattedExplanation = formatExplanation(agentResponse.getExplanation());
+                        ChatMessage responseMessage = new ChatMessage(ChatMessage.Type.ASSISTANT, formattedExplanation);
                         // 缓存代码操作，以便后续可以应用
                         lastCodeActions = agentResponse.getCodeActions() != null 
                                 ? new ArrayList<>(agentResponse.getCodeActions())
@@ -147,5 +149,38 @@ public final class AgentService {
      */
     public void clearLastCodeActions() {
         lastCodeActions.clear();
+    }
+    
+    /**
+     * 格式化解释文本，确保编号列表项之间有换行
+     * 支持多种编号格式：1. 数字点号格式（1. 2. 3.）
+     *                  2. 数字括号格式（1) 2) 3)）
+     *                  3. 分号分隔的列表
+     * 
+     * @param explanation 原始解释文本
+     * @return 格式化后的文本
+     */
+    private String formatExplanation(String explanation) {
+        if (explanation == null || explanation.trim().isEmpty()) {
+            return explanation;
+        }
+        
+        String formatted = explanation;
+        
+        // 步骤1: 处理冒号后直接跟着编号的情况（在冒号后换行）
+        // 匹配 ":数字)" 或 "：数字)" 或 ":数字." 或 "：数字."，在冒号后添加换行
+        formatted = formatted.replaceAll("([:：])\\s*(\\d+)([.)])", "$1\n$2$3");
+        
+        // 步骤2: 处理分号分隔的编号列表（支持数字点号和数字括号两种格式）
+        // 将 ";数字." 或 "；数字." 或 ";数字)" 或 "；数字)" 替换为 ";\n数字." 或 "；\n数字)" 等
+        formatted = formatted.replaceAll("([;；])\\s*(\\d+)([.)])", "$1\n$2$3");
+        
+        // 步骤3: 处理空格分隔的编号列表（统一处理点号和括号格式）
+        // 匹配非换行符、非冒号、非分号 + 一个或多个空格 + 数字 + 点号或右括号，在数字前添加换行
+        formatted = Pattern.compile("([^\\n\\r:：;；])(\\s+)(\\d+)([.)])", Pattern.MULTILINE)
+                .matcher(formatted)
+                .replaceAll("$1\n$3$4");
+        
+        return formatted;
     }
 }
