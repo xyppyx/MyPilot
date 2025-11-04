@@ -71,7 +71,7 @@ public class CodeContext {
     public String formatContext() {
         StringBuilder sb = new StringBuilder();
         if (sourceReference != null) {
-            sb.append("\nSelected Code:\n```java\n").append(sourceReference).append("\n```");
+            sb.append(sourceReference).append("\n\n");
         }
         if (packageName != null) {
             sb.append("Package: ").append(packageName).append("\n");
@@ -83,7 +83,7 @@ public class CodeContext {
             sb.append("Class: ").append(className).append("\n");
         }
         if (methodName != null) {
-            sb.append("Method: ").append(methodName).append("\n");
+            sb.append("Method: ").append(methodName).append("\n\n");
         }
         if (surroundingCode != null) {
             sb.append("Surrounding Code:\n```java\n").append(surroundingCode).append("\n```");

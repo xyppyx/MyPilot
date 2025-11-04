@@ -19,9 +19,8 @@ public class CodeReference {
                 ", startOffset=" + startOffset +
                 ", endOffset=" + endOffset +
                 ", startLine=" + startLine +
-                ", endLine=" + endLine +
-                ", selectedCode='" + selectedCode + '\'' +
-                '}';
+                ", endLine=" + endLine + '}' +
+                "\n\nselectedCode='''\n" + selectedCode + "\n'''\n";
     }
 
     // Getters and Setters
