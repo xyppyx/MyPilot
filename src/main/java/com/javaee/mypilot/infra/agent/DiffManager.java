@@ -59,23 +59,39 @@ public final class DiffManager {
         return CompletableFuture.runAsync(() -> {
             System.out.println("处理代码变更，操作数量: " + codeActions.size());
 
-            // 按文件路径分组
+            // 按文件路径分组，同时过滤掉无效的操作
             Map<String, List<CodeAction>> actionsByFile = codeActions.stream()
-                .filter(action -> action != null && 
-                    (action.getOpt() == CodeOpt.REPLACE || 
-                     action.getOpt() == CodeOpt.INSERT || 
-                     action.getOpt() == CodeOpt.DELETE))
+                .filter(action -> action != null 
+                        && action.getOpt() != null
+                        && (action.getOpt() == CodeOpt.REPLACE || 
+                             action.getOpt() == CodeOpt.INSERT || 
+                             action.getOpt() == CodeOpt.DELETE)
+                        && action.getFilePath() != null 
+                        && !action.getFilePath().trim().isEmpty())
                 .collect(Collectors.groupingBy(action -> {
                     String path = normalizeFilePath(action.getFilePath());
-                    return path;
-                }));
+                    return path != null && !path.trim().isEmpty() ? path : "";
+                }))
+                .entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().trim().isEmpty())
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             System.out.println("DiffManager: 按文件分组后，共 " + actionsByFile.size() + " 个文件需要显示diff");
+
+            // 只有在有有效操作时才显示diff窗口
+            if (actionsByFile.isEmpty()) {
+                System.out.println("DiffManager: 没有有效的代码操作，跳过显示diff窗口");
+                return;
+            }
 
             // 为每个文件显示一个diff窗口
             for (Map.Entry<String, List<CodeAction>> entry : actionsByFile.entrySet()) {
                 String filePath = entry.getKey();
                 List<CodeAction> fileActions = entry.getValue();
+                
+                if (fileActions == null || fileActions.isEmpty()) {
+                    continue;
+                }
                 
                 System.out.println("DiffManager: 文件 " + filePath + " 有 " + fileActions.size() + " 个修改");
                 

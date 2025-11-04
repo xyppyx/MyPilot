@@ -19,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Agent服务类
@@ -73,8 +74,23 @@ public final class AgentService {
                             try {
                                 var codeActions = agentResponse.getCodeActions();
                                 if (codeActions != null && !codeActions.isEmpty()) {
-                                    System.out.println("AgentService: 找到 " + codeActions.size() + " 个代码操作");
-                                    diffManager.handleCodeChanges(codeActions);
+                                    // 验证代码操作的有效性：过滤掉无效的操作
+                                    List<CodeAction> validActions = codeActions.stream()
+                                            .filter(action -> action != null 
+                                                    && action.getOpt() != null
+                                                    && (action.getOpt() == com.javaee.mypilot.core.enums.CodeOpt.REPLACE 
+                                                            || action.getOpt() == com.javaee.mypilot.core.enums.CodeOpt.INSERT 
+                                                            || action.getOpt() == com.javaee.mypilot.core.enums.CodeOpt.DELETE)
+                                                    && action.getFilePath() != null 
+                                                    && !action.getFilePath().trim().isEmpty())
+                                            .collect(Collectors.toList());
+                                    
+                                    if (!validActions.isEmpty()) {
+                                        System.out.println("AgentService: 找到 " + validActions.size() + " 个有效的代码操作（共 " + codeActions.size() + " 个）");
+                                        diffManager.handleCodeChanges(validActions);
+                                    } else {
+                                        System.out.println("AgentService: 没有有效的代码操作需要处理（共 " + codeActions.size() + " 个操作，但都不有效）");
+                                    }
                                 } else {
                                     System.out.println("AgentService: 没有代码操作需要处理");
                                 }
