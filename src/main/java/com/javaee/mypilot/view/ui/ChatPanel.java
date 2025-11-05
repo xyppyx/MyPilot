@@ -345,15 +345,10 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         // 显示用户消息（包含代码引用）
         displayUserMessageWithReferences(question);
         
-        // 确保会话ID已初始化（如果还没有会话，会在 handleRequest 中创建）
-        // 但我们需要在这里先获取/更新 currentDisplaySessionId，以便后续消息能正确显示
+        // 会话ID可能尚未初始化：首次消息时由 ManageService 在 handleRequest 内创建并广播
+        // 这里仅在已有会话时同步一次，首次会话创建后将通过 "sessionId" 事件更新
         String sessionIdBeforeRequest = manageService.getSessionId();
-        if (sessionIdBeforeRequest == null) {
-            // 如果还没有会话，先创建一个，并更新 currentDisplaySessionId
-            manageService.startNewSession();
-            currentDisplaySessionId = manageService.getSessionId();
-        } else {
-            // 如果已有会话，确保 currentDisplaySessionId 同步
+        if (sessionIdBeforeRequest != null) {
             currentDisplaySessionId = sessionIdBeforeRequest;
         }
         

@@ -61,6 +61,8 @@ public final class ManageService {
     public void handleRequest(String request, ChatOpt chatOpt, CodeContext codeContext) {
         if (sessionId == null) {
             sessionId = chatService.startNewChatSession();
+            // 首次创建会话时，通知 UI 更新当前会话ID，避免 UI 侧提前创建会话清空代码引用
+            support.firePropertyChange("sessionId", null, sessionId);
         }
 
         // 保存请求时的会话ID，用于验证响应是否属于当前会话

@@ -79,7 +79,7 @@ public class AgentPrompt {
      */
     public static String buildPrompt(String codeContext, String sessionContext, String userMessage) {
         // 对输入进行空值处理，确保Prompt结构完整
-        if (codeContext == null) {
+        if (codeContext == null || codeContext.trim().isEmpty()) {
             codeContext = "未提供具体的代码上下文。";
         }
         if (sessionContext == null || sessionContext.trim().isEmpty()) {
