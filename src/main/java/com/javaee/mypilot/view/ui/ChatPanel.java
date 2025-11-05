@@ -456,12 +456,18 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         // 创建弹出菜单
         historyPopupMenu = new JPopupMenu();
         
+        // 统一的字体大小
+        Font menuFont = new Font(Font.SANS_SERIF, Font.PLAIN, 13);
+        
         // 从 ManageService 获取所有会话
         List<String> sessions = manageService.getAllChatTitles();
         
         // 添加"当前会话"选项
         JMenuItem currentSessionItem = new JMenuItem("当前会话");
         currentSessionItem.setEnabled(false); // 默认禁用，因为已经在当前会话
+        currentSessionItem.setFont(menuFont);
+        // 设置统一的高度和间距
+        currentSessionItem.setPreferredSize(new Dimension(200, 28));
         historyPopupMenu.add(currentSessionItem);
         
         // 添加分隔线
@@ -473,16 +479,21 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         if (sessions.isEmpty()) {
             JMenuItem noHistoryItem = new JMenuItem("(暂无历史会话)");
             noHistoryItem.setEnabled(false);
+            noHistoryItem.setFont(menuFont);
+            noHistoryItem.setPreferredSize(new Dimension(200, 28));
             historyPopupMenu.add(noHistoryItem);
         } else {
             for (String session : sessions) {
                 if (session != null && !session.trim().isEmpty()) {
                     // 创建自定义菜单项，包含会话名称和删除按钮
-                    JPanel sessionPanel = new JPanel(new BorderLayout(5, 0));
+                    JPanel sessionPanel = new JPanel(new BorderLayout(8, 0));
                     sessionPanel.setOpaque(false);
+                    // 设置统一的高度
+                    sessionPanel.setPreferredSize(new Dimension(200, 28));
                     
                     // 会话名称标签（可点击）
                     JLabel sessionLabel = new JLabel(session);
+                    sessionLabel.setFont(menuFont); // 统一字体大小
                     sessionLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                     sessionLabel.addMouseListener(new MouseAdapter() {
                         @Override
@@ -495,7 +506,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                     
                     // 删除按钮（×）
                     JLabel deleteLabel = new JLabel("×");
-                    deleteLabel.setFont(deleteLabel.getFont().deriveFont(Font.BOLD, 14f));
+                    deleteLabel.setFont(menuFont.deriveFont(Font.BOLD, 13f)); // 使用相同的字体大小
                     deleteLabel.setForeground(new Color(150, 150, 150));
                     deleteLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                     deleteLabel.setToolTipText("删除此会话");
@@ -522,6 +533,8 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                     JMenuItem sessionItem = new JMenuItem();
                     sessionItem.setLayout(new BorderLayout());
                     sessionItem.add(sessionPanel, BorderLayout.CENTER);
+                    // 设置统一的高度
+                    sessionItem.setPreferredSize(new Dimension(200, 28));
                     historyPopupMenu.add(sessionItem);
                 }
             }
