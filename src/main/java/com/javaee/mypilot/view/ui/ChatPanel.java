@@ -58,6 +58,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private JPanel codeReferencePanel;
     private JPanel codeReferencesContainer;
     
+    // 当前显示的会话ID（用于防止显示不属于当前会话的消息）
+    private String currentDisplaySessionId = null;
+    
     public ChatPanel(Project project) {
         this.project = project;
         
@@ -66,6 +69,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         
         // 注册为监听器，接收 Service 的数据
         this.manageService.addPropertyChangeListener(this);
+        
+        // 初始化当前显示的会话ID
+        this.currentDisplaySessionId = manageService.getSessionId();
         
         initUI();
         showWelcomeMessage();
@@ -341,7 +347,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     private void displayUserMessageWithReferences(String question) {
         SwingUtilities.invokeLater(() -> {
             StringBuilder messageBuilder = new StringBuilder();
-            messageBuilder.append("\n👤 You:\n");
+            messageBuilder.append("\n👤 你: ");
             
             // 获取当前的代码引用
             List<CodeReference> references = manageService.getCodeReferences();
@@ -358,10 +364,10 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             }
             
             // 添加用户问题
-            messageBuilder.append(question).append("\n");
+            messageBuilder.append(question).append("\n\n");
             
             // 添加思考状态提示
-            messageBuilder.append("\n🤖 MyPilot is thinking...\n\n");
+            messageBuilder.append("🤖 MyPilot is thinking...\n\n");
             
             appendToChatHistory(messageBuilder.toString());
         });
@@ -428,6 +434,8 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void startNewSession() {
         manageService.startNewSession();
+        // 更新当前显示的会话ID
+        currentDisplaySessionId = manageService.getSessionId();
         clearChatDisplay(); // 只清空显示，不删除历史对话
     }
     
@@ -601,6 +609,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             // 从 ManageService 加载对应会话的聊天记录
             List<ChatMessage> historyMessages = manageService.switchToSessionByTitle(sessionName);
             
+            // 更新当前显示的会话ID
+            currentDisplaySessionId = manageService.getSessionId();
+            
             if (historyMessages == null || historyMessages.isEmpty()) {
                 appendToChatHistory("已切换到会话: " + sessionName + "\n");
                 appendToChatHistory("（该会话暂无聊天记录）\n\n");
@@ -610,7 +621,6 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             
             // 显示会话标题
             appendToChatHistory("已切换到会话: " + sessionName + "\n\n");
-            appendToChatHistory("────────────────────────────────────\n\n");
             
             // 按时间戳排序消息（确保按时间顺序显示）
             List<ChatMessage> sortedMessages = historyMessages.stream()
@@ -623,17 +633,16 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             // 显示所有历史消息
             for (ChatMessage message : sortedMessages) {
                 if (message.isUserMessage()) {
-                    // 显示用户消息
-                    appendToChatHistory("👤 You:\n");
-                    appendToChatHistory(message.getContent() + "\n\n");
+                    // 显示用户消息（统一格式）
+                    appendToChatHistory("\n");
+                    appendToChatHistory("👤 你: " + message.getContent() + "\n");
+                    appendToChatHistory("\n");
                 } else {
                     // 显示助手消息（应用 markdown 清理）
                     String content = cleanMarkdown(message.getContent());
                     appendToChatHistory("🤖 MyPilot: " + content + "\n\n");
                 }
             }
-            
-            appendToChatHistory("────────────────────────────────────\n\n");
         });
     }
     
@@ -661,9 +670,14 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 break;
                 
             case "assistantMessage":
-                // 显示助手回复
-                ChatMessage assistantMsg = (ChatMessage) evt.getNewValue();
-                displayAssistantMessage(assistantMsg);
+                // 显示助手回复（只显示属于当前会话的消息）
+                String currentSessionId = manageService.getSessionId();
+                if (currentSessionId != null && currentSessionId.equals(currentDisplaySessionId)) {
+                    ChatMessage assistantMsg = (ChatMessage) evt.getNewValue();
+                    displayAssistantMessage(assistantMsg);
+                } else {
+                    System.out.println("ChatPanel: 忽略不属于当前显示会话的助手消息 (当前显示会话: " + currentDisplaySessionId + ", 当前会话: " + currentSessionId + ")");
+                }
                 break;
                 
             case "status":
@@ -673,9 +687,20 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
                 break;
                 
             case "error":
-                // 显示错误信息
-                String errorMsg = (String) evt.getNewValue();
-                showError(errorMsg);
+                // 显示错误信息（只显示属于当前会话的错误）
+                String currentSessionIdForError = manageService.getSessionId();
+                if (currentSessionIdForError != null && currentSessionIdForError.equals(currentDisplaySessionId)) {
+                    String errorMsg = (String) evt.getNewValue();
+                    showError(errorMsg);
+                } else {
+                    System.out.println("ChatPanel: 忽略不属于当前显示会话的错误消息 (当前显示会话: " + currentDisplaySessionId + ", 当前会话: " + currentSessionIdForError + ")");
+                }
+                break;
+                
+            case "sessionId":
+                // 会话ID变化时，更新当前显示的会话ID
+                String newSessionId = (String) evt.getNewValue();
+                currentDisplaySessionId = newSessionId;
                 break;
                 
             case "codeReferencesUpdated":
@@ -910,9 +935,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
      */
     private void displayUserMessage(ChatMessage message) {
         SwingUtilities.invokeLater(() -> {
-            appendToChatHistory("────────────────────────────────────\n");
-            appendToChatHistory("👤 你: " + message.getContent() + "\n");
-            appendToChatHistory("────────────────────────────────────\n\n");
+            appendToChatHistory("\n👤 你: " + message.getContent() + "\n\n");
         });
     }
     

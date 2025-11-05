@@ -63,18 +63,31 @@ public final class ManageService {
             sessionId = chatService.startNewChatSession();
         }
 
+        // 保存请求时的会话ID，用于验证响应是否属于当前会话
+        final String requestSessionId = sessionId;
+
         // 异步调用 ChatService，传递代码引用
         chatService.handleRequestAsync(sessionId, chatOpt, request, codeReferences)
             .thenAccept(response -> {
-                // 通知 View 层显示响应
-                support.firePropertyChange("assistantMessage", null, response);
+                // 检查响应是否属于当前会话（防止切换会话后显示旧会话的响应）
+                if (requestSessionId.equals(sessionId)) {
+                    // 通知 View 层显示响应
+                    support.firePropertyChange("assistantMessage", null, response);
+                } else {
+                    System.out.println("ManageService: 忽略不属于当前会话的响应 (请求会话: " + requestSessionId + ", 当前会话: " + sessionId + ")");
+                }
                 
                 // 请求完成后清空代码引用
                 clearCodeReferences();
             })
             .exceptionally(throwable -> {
-                // 错误处理
-                support.firePropertyChange("error", null, "请求失败: " + throwable.getMessage());
+                // 检查错误响应是否属于当前会话
+                if (requestSessionId.equals(sessionId)) {
+                    // 错误处理
+                    support.firePropertyChange("error", null, "请求失败: " + throwable.getMessage());
+                } else {
+                    System.out.println("ManageService: 忽略不属于当前会话的错误响应 (请求会话: " + requestSessionId + ", 当前会话: " + sessionId + ")");
+                }
                 clearCodeReferences();
                 return null;
             });
@@ -145,6 +158,14 @@ public final class ManageService {
         sessionId = chatService.startNewChatSession();
         clearCodeReferences();
         support.firePropertyChange("sessionId", null, sessionId);
+    }
+    
+    /**
+     * 获取当前会话ID
+     * @return 当前会话ID，如果没有则返回 null
+     */
+    public String getSessionId() {
+        return sessionId;
     }
     
     /**
