@@ -998,7 +998,12 @@ public final class RagService {
         StringBuilder responseContent = new StringBuilder();
         responseContent.append(llmResponse.content);
 
-        // 添加知识来源标注
+        // 如果响应包含错误，不添加知识来源标注，直接返回错误消息
+        if (llmResponse.hasError) {
+            return new ChatMessage(ChatMessage.Type.ASSISTANT, responseContent.toString());
+        }
+
+        // 添加知识来源标注（仅在成功响应时）
         responseContent.append("\n---\n");
         if (llmResponse.hasRelevantKnowledge) {
             responseContent.append("📚 知识来源：知识库材料\n");

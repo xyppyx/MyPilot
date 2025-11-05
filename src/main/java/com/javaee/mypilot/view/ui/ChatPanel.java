@@ -16,6 +16,7 @@ import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.CodeReference;
 import com.javaee.mypilot.service.ManageService;
 import com.javaee.mypilot.service.AgentService;
+import com.javaee.mypilot.service.ConfigService;
 
 import javax.swing.*;
 import java.awt.*;
@@ -41,6 +42,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
     @SuppressWarnings("unused")
     private final Project project;
     private final ManageService manageService;
+    private final ConfigService configService;
     
     // UI 组件
     private JTextArea chatHistoryArea;
@@ -66,6 +68,9 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         
         // 获取 ManageService 实例
         this.manageService = ManageService.getInstance(project);
+        
+        // 获取 ConfigService 实例
+        this.configService = ConfigService.getInstance(project);
         
         // 注册为监听器，接收 Service 的数据
         this.manageService.addPropertyChangeListener(this);
@@ -305,6 +310,32 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             return;
         }
         
+        // 获取当前的聊天选项
+        ChatOpt chatOpt = manageService.getCurrentOpt();
+        
+        // 收集所有配置错误
+        StringBuilder configErrors = new StringBuilder();
+        
+        // 检查 LLM 配置（所有模式都需要）
+        String llmConfigError = configService.validateLlmConfig();
+        if (llmConfigError != null) {
+            configErrors.append("⚠️ ").append(llmConfigError).append("\n");
+        }
+        
+        // 如果使用 ASK 模式，还需要检查 Embedding 配置
+        if (chatOpt == ChatOpt.ASK) {
+            String embeddingConfigError = configService.validateEmbeddingConfig();
+            if (embeddingConfigError != null) {
+                configErrors.append("⚠️ ").append(embeddingConfigError).append("\n");
+            }
+        }
+        
+        // 如果有配置错误，显示所有错误并返回
+        if (configErrors.length() > 0) {
+            appendToChatHistory(configErrors.toString() + "\n");
+            return;
+        }
+        
         // 清空输入框
         inputArea.setText("");
         
@@ -314,11 +345,20 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         // 显示用户消息（包含代码引用）
         displayUserMessageWithReferences(question);
         
+        // 确保会话ID已初始化（如果还没有会话，会在 handleRequest 中创建）
+        // 但我们需要在这里先获取/更新 currentDisplaySessionId，以便后续消息能正确显示
+        String sessionIdBeforeRequest = manageService.getSessionId();
+        if (sessionIdBeforeRequest == null) {
+            // 如果还没有会话，先创建一个，并更新 currentDisplaySessionId
+            manageService.startNewSession();
+            currentDisplaySessionId = manageService.getSessionId();
+        } else {
+            // 如果已有会话，确保 currentDisplaySessionId 同步
+            currentDisplaySessionId = sessionIdBeforeRequest;
+        }
+        
         // 获取当前的代码上下文
         CodeContext codeContext = new CodeContext();
-        
-        // 获取当前的聊天选项
-        ChatOpt chatOpt = manageService.getCurrentOpt();
         
         // 在后台线程调用 ManageService
         new Thread(() -> {
@@ -672,6 +712,10 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             case "assistantMessage":
                 // 显示助手回复（只显示属于当前会话的消息）
                 String currentSessionId = manageService.getSessionId();
+                // 如果 currentDisplaySessionId 为 null，更新它（可能是第一次接收消息）
+                if (currentDisplaySessionId == null && currentSessionId != null) {
+                    currentDisplaySessionId = currentSessionId;
+                }
                 if (currentSessionId != null && currentSessionId.equals(currentDisplaySessionId)) {
                     ChatMessage assistantMsg = (ChatMessage) evt.getNewValue();
                     displayAssistantMessage(assistantMsg);
@@ -689,6 +733,10 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             case "error":
                 // 显示错误信息（只显示属于当前会话的错误）
                 String currentSessionIdForError = manageService.getSessionId();
+                // 如果 currentDisplaySessionId 为 null，更新它（可能是第一次接收错误）
+                if (currentDisplaySessionId == null && currentSessionIdForError != null) {
+                    currentDisplaySessionId = currentSessionIdForError;
+                }
                 if (currentSessionIdForError != null && currentSessionIdForError.equals(currentDisplaySessionId)) {
                     String errorMsg = (String) evt.getNewValue();
                     showError(errorMsg);

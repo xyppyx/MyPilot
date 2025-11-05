@@ -142,7 +142,7 @@ public class MyPilotSettingsPanel {
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         llmTypeComboBox = new JComboBox<>(LlmPreset.values());
-        llmTypeComboBox.setToolTipText("选择预设的 LLM 服务类型，将自动填充 API URL 和模型");
+        llmTypeComboBox.setToolTipText("选择预设的 LLM 服务类型，将自动填充模型名称");
         llmTypeComboBox.addActionListener(e -> onLlmTypeSelected());
         formPanel.add(llmTypeComboBox, gbc);
         row++;
@@ -180,6 +180,7 @@ public class MyPilotSettingsPanel {
         gbc.gridx = 1;
         gbc.weightx = 1.0;
         llmApiUrlField = new JBTextField();
+        llmApiUrlField.setToolTipText("请手动输入 API 端点地址，例如：https://api.deepseek.com/v1/chat/completions");
         formPanel.add(llmApiUrlField, gbc);
         row++;
         
@@ -192,8 +193,9 @@ public class MyPilotSettingsPanel {
                 "<b>使用说明:</b><br>" +
                 "1. 从「LLM 类型」下拉框选择预设服务（推荐使用<span style='color: #2196F3;'>免费服务</span>）<br>" +
                 "2. 填写对应服务的 API Key<br>" +
-                "3. API URL 和模型名称会根据选择的类型自动填充，也可手动修改<br>" +
-                "4. 可创建多个档案用于不同场景<br>" +
+                "3. 模型名称会根据选择的类型自动填充，也可手动修改<br>" +
+                "4. <b>API URL 需要手动输入</b>，请根据您选择的服务提供商填写正确的 API 端点地址<br>" +
+                "5. 可创建多个档案用于不同场景<br>" +
                 "<br><b>推荐免费服务:</b> 阿里云百炼、DeepSeek、通义千问、智谱AI、SiliconFlow" +
                 "</body></html>");
         formPanel.add(helpLabel, gbc);
@@ -536,8 +538,9 @@ public class MyPilotSettingsPanel {
     private void onLlmTypeSelected() {
         LlmPreset selectedPreset = (LlmPreset) llmTypeComboBox.getSelectedItem();
         if (selectedPreset != null && selectedPreset != LlmPreset.CUSTOM) {
-            llmApiUrlField.setText(selectedPreset.getDefaultApiUrl());
+            // 只自动填充模型名称，URL 需要用户手动输入
             llmModelField.setText(selectedPreset.getDefaultModel());
+            // API URL 不自动填充，用户需要手动输入
         }
     }
     
@@ -642,12 +645,27 @@ public class MyPilotSettingsPanel {
         config.llmProfiles.addAll(profiles);
         // 设置默认配置文件名：使用当前选中的配置，如果没有选中则使用第一个配置
         int selectedIndex = profileList.getSelectedIndex();
+        ConfigService.LlmProfile selectedProfile = null;
         if (selectedIndex >= 0 && selectedIndex < profiles.size()) {
-            config.defaultProfileName = profiles.get(selectedIndex).name;
+            selectedProfile = profiles.get(selectedIndex);
+            config.defaultProfileName = selectedProfile.name;
         } else if (!profiles.isEmpty()) {
-            config.defaultProfileName = profiles.get(0).name;
+            selectedProfile = profiles.get(0);
+            config.defaultProfileName = selectedProfile.name;
         } else {
             config.defaultProfileName = null;
+        }
+        
+        // 将当前选中的 Profile 信息同步到 config 的 LLM 配置字段（用于向后兼容和验证）
+        if (selectedProfile != null) {
+            config.llmApiKey = selectedProfile.apiKey != null ? selectedProfile.apiKey : "";
+            config.llmApiEndpoint = selectedProfile.apiUrl != null ? selectedProfile.apiUrl : "";
+            config.llmModel = selectedProfile.model != null ? selectedProfile.model : "";
+        } else {
+            // 如果没有选中任何 Profile，清空这些字段
+            config.llmApiKey = "";
+            config.llmApiEndpoint = "";
+            config.llmModel = "";
         }
         
         config.knowledgeBasePath = knowledgeBasePathField.getText();

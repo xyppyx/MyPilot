@@ -102,10 +102,22 @@ public final class AgentService {
                             }
                         });
                         return responseMessage;
+                    })
+                    .exceptionally(throwable -> {
+                        // 处理 LLM 调用异常
+                        System.err.println("AgentService: LLM API 调用失败: " + throwable.getMessage());
+                        throwable.printStackTrace();
+                        String errorMessage = "抱歉，调用 AI 模型时出现错误：" + throwable.getMessage() + 
+                                           "\n\n请检查 API Key、API URL 和网络连接是否正常。";
+                        return new ChatMessage(ChatMessage.Type.ASSISTANT, errorMessage);
                     });
         } catch (Exception e) {
-            System.out.println("Agent响应错误" + e.getMessage());
-            throw new RuntimeException(e);
+            // 处理 chatAsync 调用时的同步异常（如配置错误等）
+            System.err.println("AgentService: 启动 LLM API 调用失败: " + e.getMessage());
+            e.printStackTrace();
+            String errorMessage = "抱歉，启动 AI 模型调用时出现错误：" + e.getMessage() + 
+                               "\n\n请检查 API Key、API URL 和网络连接是否正常。";
+            return CompletableFuture.completedFuture(new ChatMessage(ChatMessage.Type.ASSISTANT, errorMessage));
         }
     }
 

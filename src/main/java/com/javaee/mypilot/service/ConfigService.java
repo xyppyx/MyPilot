@@ -46,8 +46,8 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public String userUploadPath = System.getProperty("user.home") + File.separator + ".mypilot" + File.separator + "userUploads"; // 用户上传的文档路径
 
         // RAG Embedding 配置
-        public String embeddingServiceType = "DashScope"; // DashScope, Zhipu, Local
-        public String embeddingApiKey = "sk-12ffff37c0834dfd8d227eda0b809f91";
+        public String embeddingServiceType = ""; // DashScope, Zhipu, Local
+        public String embeddingApiKey = ""; // 用户需要自行配置
 
 
         // RAG 检索配置
@@ -55,10 +55,10 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         public double relevanceThreshold = 0.3;
 
         // LLM API 配置
-        public String llmApiType = "DeepSeek"; // DeepSeek, OpenAI, QianWen, ZhiPu, etc.
-        public String llmApiKey = "0fuChNmfaLrHbWvLZYgsn6TgUAuBSCxdqPQFEqBvpbzYCyH_oLJXpgs0a6Xwpd71-6D5kwBPbp3CNtTM4Q8tcQ";
-        public String llmApiEndpoint = "https://api.modelarts-maas.com/v1/chat/completions"; // DeepSeek API
-        public String llmModel = "DeepSeek-V3"; // deepseek-chat, gpt-3.5-turbo, qwen-plus, glm-4, etc.
+        public String llmApiType = ""; // DeepSeek, OpenAI, QianWen, ZhiPu, etc.
+        public String llmApiKey = ""; // 用户需要自行配置
+        public String llmApiEndpoint = ""; // 用户需要自行配置
+        public String llmModel = ""; // 用户需要自行配置
     }
 
     private Config myConfig = new Config();
@@ -90,6 +90,19 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
         }
         if (config.embeddingApiKey == null) {
             config.embeddingApiKey = "";
+        }
+        // LLM API 配置空值处理
+        if (config.llmApiType == null || config.llmApiType.isEmpty()) {
+            config.llmApiType = "";
+        }
+        if (config.llmApiKey == null) {
+            config.llmApiKey = "";
+        }
+        if (config.llmApiEndpoint == null) {
+            config.llmApiEndpoint = "";
+        }
+        if (config.llmModel == null) {
+            config.llmModel = "";
         }
         // 确保检索参数使用合理的默认值
         if (config.retrievalTopK <= 0) {
@@ -202,5 +215,42 @@ public final class ConfigService implements PersistentStateComponent<ConfigServi
 
     public void setLlmModel(String model) {
         myConfig.llmModel = model;
+    }
+
+    /**
+     * 验证 LLM 配置是否完整
+     * @return 如果配置不完整，返回错误信息；如果配置完整，返回 null
+     */
+    @Nullable
+    public String validateLlmConfig() {
+        if (myConfig.llmApiKey == null || myConfig.llmApiKey.trim().isEmpty()) {
+            return "LLM API Key 未配置，请在 Settings → Tools → MyPilot 中配置";
+        }
+        if (myConfig.llmApiEndpoint == null || myConfig.llmApiEndpoint.trim().isEmpty()) {
+            return "LLM API Endpoint 未配置，请在 Settings → Tools → MyPilot 中配置";
+        }
+        if (myConfig.llmModel == null || myConfig.llmModel.trim().isEmpty()) {
+            return "LLM Model 未配置，请在 Settings → Tools → MyPilot 中配置";
+        }
+        return null;
+    }
+
+    /**
+     * 验证 Embedding 配置是否完整
+     * @return 如果配置不完整，返回错误信息；如果配置完整，返回 null
+     */
+    @Nullable
+    public String validateEmbeddingConfig() {
+        String serviceType = myConfig.embeddingServiceType;
+        if (serviceType == null || serviceType.trim().isEmpty()) {
+            return "Embedding 未配置，请在 Settings → Tools → MyPilot 中配置";
+        }
+        // Local 类型不需要 API Key
+        if (!"Local".equals(serviceType)) {
+            if (myConfig.embeddingApiKey == null || myConfig.embeddingApiKey.trim().isEmpty()) {
+                return "Embedding API Key 未配置，请在 Settings → Tools → MyPilot 中配置";
+            }
+        }
+        return null;
     }
 }
