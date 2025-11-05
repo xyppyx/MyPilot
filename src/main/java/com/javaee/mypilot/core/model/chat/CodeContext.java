@@ -70,9 +70,6 @@ public class CodeContext {
      */
     public String formatContext() {
         StringBuilder sb = new StringBuilder();
-        if (sourceReference != null) {
-            sb.append(sourceReference).append("\n\n");
-        }
         if (packageName != null) {
             sb.append("Package: ").append(packageName).append("\n");
         }
@@ -83,10 +80,13 @@ public class CodeContext {
             sb.append("Class: ").append(className).append("\n");
         }
         if (methodName != null) {
-            sb.append("Method: ").append(methodName).append("\n\n");
+            sb.append("Method: ").append(methodName).append("\n");
+        }
+        if (sourceReference != null) {
+            sb.append(sourceReference).append("\n");
         }
         if (surroundingCode != null) {
-            sb.append("Surrounding Code:\n```java\n").append(surroundingCode).append("\n```");
+            sb.append("选择代码的前后五行:\n'''\n").append(surroundingCode).append("\n''''");
         }
         return sb.toString();
     }

@@ -118,6 +118,7 @@ public class ChatSession {
         StringBuilder prompt = new StringBuilder();
         if (codeContexts != null && !codeContexts.isEmpty()) {
             for (CodeContext ctx : codeContexts) {
+                prompt.append("第").append(codeContexts.indexOf(ctx) + 1).append("段代码上下文:\n");
                 prompt.append(ctx.formatContext()).append("\n---\n");
             }
         }
