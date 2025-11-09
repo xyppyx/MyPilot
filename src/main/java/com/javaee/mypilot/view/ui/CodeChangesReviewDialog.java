@@ -242,6 +242,24 @@ public class CodeChangesReviewDialog extends DialogWrapper {
             return;
         }
         super.doOKAction();
+
+        // 对话框关闭时，清理仍为空的临时新文件
+        com.javaee.mypilot.infra.agent.DiffManager diffManager =
+            project.getService(com.javaee.mypilot.infra.agent.DiffManager.class);
+        if (diffManager != null) {
+            diffManager.cleanupEmptyTempNewFiles();
+        }
+    }
+
+    @Override
+    public void doCancelAction() {
+        super.doCancelAction();
+        // 取消关闭也清理仍为空的临时新文件
+        com.javaee.mypilot.infra.agent.DiffManager diffManager =
+            project.getService(com.javaee.mypilot.infra.agent.DiffManager.class);
+        if (diffManager != null) {
+            diffManager.cleanupEmptyTempNewFiles();
+        }
     }
 }
 

@@ -20,12 +20,18 @@ import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.JBPopup;
+import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.FileEditorManagerListener;
+import com.intellij.util.messages.MessageBusConnection;
+import com.intellij.diff.editor.ChainDiffVirtualFile;
 import com.javaee.mypilot.core.enums.CodeOpt;
 import com.javaee.mypilot.core.model.agent.CodeAction;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.io.IOException;
@@ -39,10 +45,28 @@ public final class DiffManager {
 
     private final Project project;
     private final DiffContentFactory diffContentFactory;
+    // 记录为展示 Diff 而临时创建的“候选新文件”，若关闭后仍为空则清理
+    private final Set<String> tempNewFiles = ConcurrentHashMap.newKeySet();
+    private final MessageBusConnection messageBusConnection;
 
     public DiffManager(Project project) {
         this.project = project;
         this.diffContentFactory = DiffContentFactory.getInstance();
+        // 监听 Diff 编辑器关闭事件，关闭后尝试清理仍为空的临时新文件
+        this.messageBusConnection = project.getMessageBus().connect();
+        this.messageBusConnection.subscribe(FileEditorManagerListener.FILE_EDITOR_MANAGER, new FileEditorManagerListener() {
+            @Override
+            public void fileClosed(@org.jetbrains.annotations.NotNull FileEditorManager source,
+                                   @org.jetbrains.annotations.NotNull VirtualFile file) {
+                try {
+                    if (file instanceof ChainDiffVirtualFile) {
+                        // 任一 Diff 关闭时尝试清理（只会删除仍在 temp 集合且为空的文件）
+                        cleanupEmptyTempNewFiles();
+                    }
+                } catch (Throwable ignore) {
+                }
+            }
+        });
     }
 
     /**
@@ -88,22 +112,24 @@ public final class DiffManager {
                 return;
             }
 
-            // 为每个文件显示一个diff窗口
+            // 为每个文件显示一个diff窗口（分批延时调度，避免同时聚焦产生警告）
+            int index = 0;
             for (Map.Entry<String, List<CodeAction>> entry : actionsByFile.entrySet()) {
                 String filePath = entry.getKey();
                 List<CodeAction> fileActions = entry.getValue();
-                
                 if (fileActions == null || fileActions.isEmpty()) {
                     continue;
                 }
-                
-                System.out.println("DiffManager: 文件 " + filePath + " 有 " + fileActions.size() + " 个修改");
-                
                 // 按行号排序，确保修改顺序正确
                 fileActions.sort(Comparator.comparingInt(CodeAction::getStartLine));
-                
-                // 显示该文件的所有修改
-                _showDiffForFile(filePath, fileActions);
+
+                final String fp = filePath;
+                final List<CodeAction> fa = fileActions;
+                long delayMs = 150L * index++; // 每个文件延时 150ms 触发
+                AppExecutorUtil.getAppScheduledExecutorService().schedule(() -> {
+                    System.out.println("DiffManager: 文件 " + fp + " 有 " + fa.size() + " 个修改");
+                    _showDiffForFile(fp, fa);
+                }, delayMs, java.util.concurrent.TimeUnit.MILLISECONDS);
             }
         }, AppExecutorUtil.getAppExecutorService());
     }
@@ -483,6 +509,9 @@ public final class DiffManager {
                         "建议内容"
                     );
                     com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
+
+                    // 兜底延时清理：若若干分钟后仍为空且未被应用修改，则自动删除
+                    scheduleCleanupIfStillEmpty(file.getPath(), 0.5);
                 } else {
                     // 仅文本 diff
                     DocumentContent oldContent = diffContentFactory.create("");
@@ -595,6 +624,9 @@ public final class DiffManager {
                 try {
                     CodeOpt opt = action.getOpt();
                     String newCode = action.getNewCode() != null ? action.getNewCode() : "";
+
+                    // 任何对该文件的实际写入，都视为用户接受/应用了修改 → 从临时集合移除
+                    tempNewFiles.remove(finalFile.getPath());
                     
                     if (opt == CodeOpt.REPLACE) {
                         // 替换操作：替换指定行范围的代码
@@ -874,10 +906,75 @@ public final class DiffManager {
                     child = parentDir.createChildData(this, fileName);
                     // 初始为空内容
                     VfsUtil.saveText(child, "");
+                    // 标记为“临时新文件”，以便关闭后仍为空进行清理
+                    tempNewFiles.add(child.getPath());
                 }
                 return child;
             } catch (IOException ioEx) {
                 throw new RuntimeException(ioEx);
+            }
+        });
+    }
+
+    /**
+     * 在对话框关闭或需要清理时调用：删除仍为空的临时新文件
+     */
+    public void cleanupEmptyTempNewFiles() {
+        if (tempNewFiles.isEmpty()) return;
+        // 拷贝一份，避免遍历时修改集合
+        List<String> candidates = new ArrayList<>(tempNewFiles);
+        for (String path : candidates) {
+            try {
+                VirtualFile vf = LocalFileSystem.getInstance().findFileByPath(path);
+                if (vf != null && vf.exists() && isVirtualFileEmpty(vf)) {
+                    deleteVirtualFile(vf);
+                    tempNewFiles.remove(path);
+                    System.out.println("DiffManager: 已清理空的新文件: " + path);
+                }
+            } catch (Exception ignore) {
+                // 忽略单个文件清理失败，继续后续
+            }
+        }
+    }
+
+    /**
+     * 延时检查并清理仍为空的临时新文件（兜底）
+     */
+    private void scheduleCleanupIfStillEmpty(String filePath, double minutes) {
+        long delayMillis = (long) (minutes * 60_000);
+        if (delayMillis < 1000) {
+            delayMillis = 1000; // 最少1秒，避免过短导致调度器拒绝
+        }
+        AppExecutorUtil.getAppScheduledExecutorService().schedule(() -> {
+            try {
+                VirtualFile vf = LocalFileSystem.getInstance().findFileByPath(filePath);
+                if (vf != null && vf.exists() && tempNewFiles.contains(filePath) && isVirtualFileEmpty(vf)) {
+                    deleteVirtualFile(vf);
+                    tempNewFiles.remove(filePath);
+                    System.out.println("DiffManager: 定时清理空的新文件: " + filePath);
+                } else {
+                    System.out.println("DiffManager: 定时检查未清理（可能已写入或不在候选集合）: " + filePath);
+                }
+            } catch (Exception e) {
+                // 忽略
+            }
+        }, delayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private boolean isVirtualFileEmpty(VirtualFile vf) {
+        Document document = FileDocumentManager.getInstance().getDocument(vf);
+        if (document != null) {
+            return document.getTextLength() == 0;
+        }
+        return vf.getLength() == 0;
+    }
+
+    private void deleteVirtualFile(VirtualFile vf) {
+        WriteCommandAction.runWriteCommandAction(project, () -> {
+            try {
+                vf.delete(this);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
         });
     }
