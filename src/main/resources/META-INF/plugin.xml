@@ -4,9 +4,19 @@
 
     <name>MyPilot</name>
 
-    <vendor url="https://www.tongji.edu.cn">tongji</vendor>
+    <vendor email="2354093@tongji.edu.cn" url="https://github.com/xyppyx/MyPilot">徐云鹏、陈艺龙、李雪菲</vendor>
 
-    <description>2025同济大学JavaEE课程项目, 支持rag与agent的ai coding插件</description>
+    <description><![CDATA[
+        <h2>MyPilot — JavaEE 课程学习助手（RAG + Agent）</h2>
+        <p>为课堂学习与项目开发打造的 AI Coding 插件，提供 <b>RAG 检索增强问答</b> 与 <b>Agent 智能改码</b> 两大能力，深度集成到 IntelliJ IDEA。</p>
+        <h3>特性</h3>
+        <ul>
+          <li><b>ASK（RAG）</b>：基于项目/课件资料进行检索增强，精准引用代码与文档</li>
+          <li><b>AGENT</b>：生成改动并以 Diff 方式呈现，安全、可审阅地应用到项目</li>
+          <li><b>右键菜单/快捷键</b>：Alt+M 添加代码引用；支持文件/文件夹一键加入上下文</li>
+          <li><b>工具窗口</b>：右侧聊天面板，支持会话管理与代码引用卡片跳转</li>
+        </ul>
+    ]]></description>
 
     <!-- Product and plugin compatibility requirements.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->

@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.javaee"
-version = "1.0-SNAPSHOT"
+version = "1.0"
 
 repositories {
     maven {
@@ -62,8 +62,41 @@ intellijPlatform {
         }
 
         changeNotes = """
-            Initial version
+            <ul>
+              <li>初始发布：集成工具窗口、RAG 与 Agent 双模式</li>
+              <li>新增编辑器/项目视图右键菜单与 Alt+M 快捷键</li>
+              <li>支持代码引用卡片、会话管理与设置页入口</li>
+            </ul>
         """.trimIndent()
+
+        // 可选：在这里统一声明 vendor 信息（将自动补丁到 plugin.xml）
+        vendor {
+            name = "徐云鹏、陈艺龙、李雪菲"
+            email = "2354093@tongji.edu.cn"
+            url = "https://github.com/xyppyx/MyPilot"
+        }
+    }
+
+    // JetBrains Marketplace 发布配置（本地/CI 通过环境变量注入）
+    publishing {
+        // 在本地/CI 设置：PUBLISH_TOKEN 或 JETBRAINS_TOKEN
+        token.set(
+            providers.environmentVariable("PUBLISH_TOKEN")
+                .orElse(providers.environmentVariable("JETBRAINS_TOKEN"))
+        )
+        // 可选渠道：default、EAP 等；也可通过环境变量覆写
+        channels.set(
+            listOf(
+                providers.environmentVariable("PUBLISH_CHANNEL").orElse("default").get()
+            )
+        )
+    }
+
+    //（可选）插件签名，用于 Marketplace 分发校验（建议在 CI 配置）
+    signing {
+        certificateChain.set(providers.environmentVariable("CERTIFICATE_CHAIN"))
+        privateKey.set(providers.environmentVariable("PRIVATE_KEY"))
+        password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
     }
 }
 
