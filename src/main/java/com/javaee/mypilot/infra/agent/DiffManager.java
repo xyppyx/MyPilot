@@ -16,6 +16,7 @@ import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.LocalFileSystem;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.openapi.ui.popup.JBPopupFactory;
 import com.intellij.openapi.ui.popup.JBPopup;
@@ -25,6 +26,9 @@ import com.javaee.mypilot.core.model.agent.CodeAction;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.io.IOException;
 
 /**
  * 代码差异管理器，负责处理代码差异的计算和展示。
@@ -142,6 +146,15 @@ public final class DiffManager {
                     VirtualFile baseDir = com.intellij.openapi.project.ProjectUtil.guessProjectDir(project);
                     if (baseDir != null) {
                         file = baseDir.findFileByRelativePath(relativePath);
+                    }
+                }
+                
+                // 文件仍不存在，则视为新文件：先物理创建空文件，确保后续 diff 可 accept/append
+                if (file == null || !file.exists()) {
+                    try {
+                        file = ensureVirtualFileExists(filePath);
+                    } catch (Exception createEx) {
+                        System.err.println("创建新文件失败: " + createEx.getMessage());
                     }
                 }
                 
@@ -276,7 +289,7 @@ public final class DiffManager {
                             com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
                         }
                     } else {
-                        // 文件不存在，可能是新建文件的情况
+                        // 无法创建文件且仍不存在，降级为仅展示文本 diff（不支持 accept/append）
                         if (!fileActions.isEmpty()) {
                             showDiffForNewFile(fileActions.get(0));
                         }
@@ -388,6 +401,15 @@ public final class DiffManager {
                     }
                 }
                 
+                // 文件仍不存在，则视为新文件：先物理创建空文件，确保后续 diff 可 accept/append
+                if (file == null || !file.exists()) {
+                    try {
+                        file = ensureVirtualFileExists(normalizedPath);
+                    } catch (Exception createEx) {
+                        System.err.println("创建新文件失败: " + createEx.getMessage());
+                    }
+                }
+                
                 return file;
             } catch (Exception e) {
                 System.err.println("查找文件时出错: " + e.getMessage());
@@ -402,9 +424,8 @@ public final class DiffManager {
                         Document document = FileDocumentManager.getInstance().getDocument(file);
                         
                         if (document != null) {
-                            // 创建旧内容（当前文件内容或指定的旧代码）
-                            String oldText = action.getOldCode() != null ? action.getOldCode() : document.getText();
-                            DocumentContent oldContent = diffContentFactory.create(oldText, file.getFileType());
+                            // 以文件绑定内容作为旧内容，确保 accept/append 可用
+                            DiffContent oldContent = diffContentFactory.create(project, file);
                             
                             // 创建新内容（建议的修改）
                             String newText = action.getNewCode() != null ? action.getNewCode() : "";
@@ -425,7 +446,7 @@ public final class DiffManager {
                             com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
                         }
                     } else {
-                        // 文件不存在，可能是新建文件的情况
+                        // 仍无法获取文件，降级为仅文本 diff
                         showDiffForNewFile(action);
                     }
                 } catch (Exception e) {
@@ -445,25 +466,38 @@ public final class DiffManager {
     private void showDiffForNewFile(CodeAction action) {
         ApplicationManager.getApplication().invokeLater(() -> {
             try {
-                // 创建空内容作为旧内容
-                DocumentContent oldContent = diffContentFactory.create("");
-                
-                // 创建新内容
-                String newText = action.getNewCode() != null ? action.getNewCode() : "";
-                DocumentContent newContent = diffContentFactory.create(newText);
-                
-                // 创建差异请求
-                String title = String.format("AI生成建议: %s", action.getFilePath());
-                SimpleDiffRequest request = new SimpleDiffRequest(
-                    title,
-                    oldContent,
-                    newContent,
-                    "空文件",
-                    "建议内容"
-                );
-                
-                // 显示差异对比窗口
-                com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
+                // 先物理创建新文件（空内容），从而 diff 绑定 VirtualFile，支持 accept/append
+                String normalizedPath = normalizeFilePath(action.getFilePath());
+                VirtualFile file = ensureVirtualFileExists(normalizedPath);
+                if (file != null && file.exists()) {
+                    DiffContent oldContent = diffContentFactory.create(project, file);
+                    String newText = action.getNewCode() != null ? action.getNewCode() : "";
+                    DiffContent newContent = diffContentFactory.create(newText, file.getFileType());
+
+                    String title = String.format("AI生成建议: %s", file.getName());
+                    SimpleDiffRequest request = new SimpleDiffRequest(
+                        title,
+                        oldContent,
+                        newContent,
+                        String.format("空文件: %s", file.getName()),
+                        "建议内容"
+                    );
+                    com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
+                } else {
+                    // 仅文本 diff
+                    DocumentContent oldContent = diffContentFactory.create("");
+                    String newText = action.getNewCode() != null ? action.getNewCode() : "";
+                    DocumentContent newContent = diffContentFactory.create(newText);
+                    String title = String.format("AI生成建议(未绑定文件): %s", action.getFilePath());
+                    SimpleDiffRequest request = new SimpleDiffRequest(
+                        title,
+                        oldContent,
+                        newContent,
+                        "空文件",
+                        "建议内容"
+                    );
+                    com.intellij.diff.DiffManager.getInstance().showDiff(project, request);
+                }
             } catch (Exception e) {
                 System.err.println("显示新文件差异时出错: " + e.getMessage());
             }
@@ -536,10 +570,17 @@ public final class DiffManager {
                 }
             }
             
+            // 文件仍不存在，则尝试创建（支持新文件的 accept/append）
             if (file == null || !file.exists()) {
-                System.err.println("DiffManager: 无法找到文件: " + action.getFilePath() + " (规范化后: " + normalizedPath + ")");
-                System.err.println("DiffManager: 如果这是新建文件，请先创建文件后再应用更改");
-                return false;
+                try {
+                    file = ensureVirtualFileExists(normalizedPath);
+                } catch (Exception createEx) {
+                    System.err.println("DiffManager: 创建新文件失败: " + createEx.getMessage());
+                }
+                if (file == null || !file.exists()) {
+                    System.err.println("DiffManager: 无法找到或创建文件: " + action.getFilePath() + " (规范化后: " + normalizedPath + ")");
+                    return false;
+                }
             }
             
             final VirtualFile finalFile = file; // 使变量final以便在lambda中使用
@@ -706,6 +747,30 @@ public final class DiffManager {
             filePath = filePath.substring(7); // file:// -> 7个字符
         }
         
+        // 将以 "project/" 开头或相对路径视为相对项目根目录的路径
+        boolean isWindowsAbsolute = filePath.length() > 1 && Character.isLetter(filePath.charAt(0)) && filePath.charAt(1) == ':';
+        boolean isUnixAbsolute = filePath.startsWith("/");
+        boolean looksProjectRelative = filePath.startsWith("project/") || filePath.startsWith("project\\");
+        if ((looksProjectRelative || (!isWindowsAbsolute && !isUnixAbsolute)) && project != null && project.getBasePath() != null) {
+            String base = project.getBasePath();
+            // 去除可能的 "./" 前缀
+            if (filePath.startsWith("./")) {
+                filePath = filePath.substring(2);
+            }
+            // 将 "project/" 前缀去掉，避免 basePath 重复包含 "project"
+            if (looksProjectRelative) {
+                filePath = filePath.substring("project/".length()).replace('\\', '/');
+                if (filePath.startsWith("/")) {
+                    filePath = filePath.substring(1);
+                }
+            }
+            // 拼接为绝对路径
+            if (!base.endsWith("/") && !base.endsWith("\\")) {
+                base = base + "/";
+            }
+            filePath = (base + filePath).replace('\\', '/');
+        }
+        
         // 在 Windows 上，如果路径以 / 开头（Unix风格），去除第一个斜杠
         // 例如：/D:/path/to/file -> D:/path/to/file
         if (filePath.length() > 2 && filePath.charAt(0) == '/' && 
@@ -769,5 +834,51 @@ public final class DiffManager {
         System.out.println("DiffManager: 路径规范化 - 原始: " + originalPath + " -> 规范化: " + filePath);
         
         return filePath;
+    }
+
+    /**
+     * 确保指定路径的 VirtualFile 存在；若不存在则创建父目录与空文件
+     */
+    private VirtualFile ensureVirtualFileExists(String normalizedPath) throws IOException {
+        if (normalizedPath == null || normalizedPath.trim().isEmpty()) {
+            return null;
+        }
+        Path nioPath = Paths.get(normalizedPath);
+        Path parentNio = nioPath.getParent();
+        String parentPath = parentNio != null ? parentNio.toString().replace('\\', '/') : null;
+        String fileName = nioPath.getFileName().toString();
+
+        return WriteCommandAction.writeCommandAction(project).compute(() -> {
+            try {
+                VirtualFile parentDir;
+                String dirToCreate = parentPath;
+                
+                // 如果 parentPath 为空或是相对路径，则拼接项目根目录
+                boolean isAbsoluteDir = dirToCreate != null && (dirToCreate.startsWith("/") ||
+                        (dirToCreate.length() > 1 && Character.isLetter(dirToCreate.charAt(0)) && dirToCreate.charAt(1) == ':'));
+                if (!isAbsoluteDir) {
+                    VirtualFile baseDir = com.intellij.openapi.project.ProjectUtil.guessProjectDir(project);
+                    if (baseDir == null) {
+                        throw new IOException("无法定位项目根目录用于创建文件: " + normalizedPath);
+                    }
+                    if (dirToCreate == null || dirToCreate.isEmpty()) {
+                        dirToCreate = baseDir.getPath();
+                    } else {
+                        dirToCreate = (baseDir.getPath() + "/" + dirToCreate).replace('\\', '/');
+                    }
+                }
+                
+                parentDir = VfsUtil.createDirectories(dirToCreate);
+                VirtualFile child = parentDir.findChild(fileName);
+                if (child == null) {
+                    child = parentDir.createChildData(this, fileName);
+                    // 初始为空内容
+                    VfsUtil.saveText(child, "");
+                }
+                return child;
+            } catch (IOException ioEx) {
+                throw new RuntimeException(ioEx);
+            }
+        });
     }
 }
