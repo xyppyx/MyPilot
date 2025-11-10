@@ -1,7 +1,7 @@
 package com.javaee.mypilot.core.model.chat;
 
 /**
- * 代码引用信息 - 用于标识用户选中的代码片段, 传递到rag/agent中调用psi获取上下文
+ * 代码引用信息 - 用于标识用户选中的代码片段, 传递到rag/edit中调用psi获取上下文
  * Code reference information for identifying the code snippet selected by the user
  */
 public class CodeReference {

@@ -11,7 +11,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 聊天记录压缩器，负责对聊天记录进行压缩和摘要，以便节省存储空间和提高检索效率。
- * TODO: agent
+ * TODO: edit
  */
 @Service(Service.Level.PROJECT)
 public final class HistoryCompressor {

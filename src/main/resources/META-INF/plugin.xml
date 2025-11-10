@@ -7,8 +7,8 @@
     <vendor email="2354093@tongji.edu.cn" url="https://github.com/xyppyx/MyPilot">徐云鹏、陈艺龙、李雪菲</vendor>
 
     <description><![CDATA[
-        <h2>MyPilot — JavaEE 课程学习助手（RAG + Agent）</h2>
-        <p>为课堂学习与项目开发打造的 AI Coding 插件，提供 <b>RAG 检索增强问答</b> 与 <b>Agent 智能改码</b> 两大能力，深度集成到 IntelliJ IDEA。</p>
+        <h2>MyPilot — JavaEE 课程学习助手（RAG + Edit）</h2>
+        <p>为课堂学习与项目开发打造的 AI Coding 插件，提供 <b>RAG 检索增强问答</b> 与 <b>Edit 智能改码</b> 两大能力，深度集成到 IntelliJ IDEA。</p>
         <h3>特性</h3>
         <ul>
           <li><b>ASK（RAG）</b>：基于项目/课件资料进行检索增强，精准引用代码与文档</li>

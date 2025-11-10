@@ -5,5 +5,5 @@ package com.javaee.mypilot.core.enums;
  */
 public enum ChatOpt {
     ASK,
-    AGENT;
+    EDIT;
 }

@@ -1,8 +1,9 @@
-package com.javaee.mypilot.infra.agent;
+package com.javaee.mypilot.infra.edit;
 
 import com.intellij.diff.DiffContentFactory;
 import com.intellij.diff.contents.DiffContent;
 import com.intellij.diff.contents.DocumentContent;
+import com.intellij.diff.editor.ChainDiffVirtualFile;
 import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.diff.util.DiffUserDataKeys;
 import com.intellij.openapi.actionSystem.AnAction;
@@ -13,28 +14,27 @@ import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.LocalFileSystem;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.intellij.openapi.vfs.VfsUtil;
-import com.intellij.util.concurrency.AppExecutorUtil;
-import com.intellij.openapi.ui.popup.JBPopupFactory;
-import com.intellij.openapi.ui.popup.JBPopup;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.popup.JBPopup;
+import com.intellij.openapi.ui.popup.JBPopupFactory;
+import com.intellij.openapi.vfs.LocalFileSystem;
+import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.concurrency.AppExecutorUtil;
 import com.intellij.util.messages.MessageBusConnection;
-import com.intellij.diff.editor.ChainDiffVirtualFile;
 import com.javaee.mypilot.core.enums.CodeOpt;
-import com.javaee.mypilot.core.model.agent.CodeAction;
+import com.javaee.mypilot.core.model.edit.CodeAction;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
-import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.io.IOException;
+import java.util.stream.Collectors;
 
 /**
  * 代码差异管理器，负责处理代码差异的计算和展示。
@@ -72,7 +72,7 @@ public final class DiffManager {
     /**
      * 处理代码变更并异步展示差异对比
      * 使用 IntelliJ Platform 的异步任务执行器
-     * 此方法在 AgentService 中被调用
+     * 此方法在 EditService 中被调用
      * 同一个文件的多个修改会合并到一个diff窗口中显示
      * 
      * @param codeActions LLM 返回的代码操作列表

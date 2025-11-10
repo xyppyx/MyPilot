@@ -1,24 +1,24 @@
-package com.javaee.mypilot.core.model.agent;
+package com.javaee.mypilot.core.model.edit;
 
 import com.google.gson.annotations.SerializedName;
 
 import java.util.List;
 
 /**
- * Agent响应模型
+ * Edit响应模型
  * 调用大语言模型后返回的数据结构
  */
-public class AgentResponse {
+public class EditResponse {
 
     private String explanation;                 // 语言解释部分
 
     @SerializedName("actions")
     private List<CodeAction> codeActions;       // 代码部分
 
-    public AgentResponse() {
+    public EditResponse() {
     }
 
-    public AgentResponse(String explanation, List<CodeAction> codeActions, String completeCode) {
+    public EditResponse(String explanation, List<CodeAction> codeActions, String completeCode) {
         this.explanation = explanation;
         this.codeActions = codeActions;
     }

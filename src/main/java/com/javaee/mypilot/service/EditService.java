@@ -6,14 +6,14 @@ import com.google.gson.JsonSyntaxException;
 import com.intellij.openapi.components.Service;
 import com.intellij.openapi.project.Project;
 import com.javaee.mypilot.core.consts.Chat;
-import com.javaee.mypilot.core.model.agent.AgentResponse;
-import com.javaee.mypilot.core.model.agent.CodeAction;
-import com.javaee.mypilot.core.model.agent.CodeActionTypeAdapter;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
 import com.javaee.mypilot.core.model.chat.ChatSession;
-import com.javaee.mypilot.infra.agent.DiffManager;
-import com.javaee.mypilot.infra.api.AgentPrompt;
+import com.javaee.mypilot.core.model.edit.CodeAction;
+import com.javaee.mypilot.core.model.edit.CodeActionTypeAdapter;
+import com.javaee.mypilot.core.model.edit.EditResponse;
+import com.javaee.mypilot.infra.api.EditPrompt;
 import com.javaee.mypilot.infra.api.LlmClient;
+import com.javaee.mypilot.infra.edit.DiffManager;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -23,11 +23,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Agent服务类
+ * Edit服务类
  * 负责处理与智能代理相关的业务逻辑，包括构建Prompt、调用大语言模型API以及解析响应等。
  */
 @Service(Service.Level.PROJECT)
-public final class AgentService {
+public final class EditService {
 
     private final Project project;
     private final LlmClient llmClient;
@@ -39,7 +39,7 @@ public final class AgentService {
     // 缓存最近的代码操作，以便用户可以应用它们
     private List<CodeAction> lastCodeActions = new ArrayList<>();
 
-    public AgentService(@NotNull Project project) {
+    public EditService(@NotNull Project project) {
         this.project = project;
         this.llmClient = project.getService(LlmClient.class);
         this.diffManager = project.getService(DiffManager.class);
@@ -56,25 +56,25 @@ public final class AgentService {
         String sessionContext = chatSession.buildSessionContextPrompt(Chat.MAX_CHAT_TURN);
         String codeContext = chatSession.buildCodeContextPrompt();
         String userMessage = chatSession.getLastMessage().getContent();
-        String prompt = AgentPrompt.buildPrompt(codeContext, sessionContext, userMessage);
-        System.out.println("\n\nAgent模式提示词: " + prompt + "\n\n");
+        String prompt = EditPrompt.buildPrompt(codeContext, sessionContext, userMessage);
+        System.out.println("\n\nEdit模式提示词: " + prompt + "\n\n");
 
         // 异步调用llm client
         try {
             return llmClient.chatAsync(prompt)
                     .thenApply(this::parseLlmResponse)
-                    .thenApply(agentResponse -> {
-                        String formattedExplanation = formatExplanation(agentResponse.getExplanation());
+                    .thenApply(editResponse -> {
+                        String formattedExplanation = formatExplanation(editResponse.getExplanation());
                         ChatMessage responseMessage = new ChatMessage(ChatMessage.Type.ASSISTANT, formattedExplanation);
                         // 缓存代码操作，以便后续可以应用
-                        lastCodeActions = agentResponse.getCodeActions() != null 
-                                ? new ArrayList<>(agentResponse.getCodeActions())
+                        lastCodeActions = editResponse.getCodeActions() != null 
+                                ? new ArrayList<>(editResponse.getCodeActions())
                                 : new ArrayList<>();
                         
                         // 异步处理代码变更
                         CompletableFuture.runAsync(() -> {
                             try {
-                                var codeActions = agentResponse.getCodeActions();
+                                var codeActions = editResponse.getCodeActions();
                                 if (codeActions != null && !codeActions.isEmpty()) {
                                     // 验证代码操作的有效性：过滤掉无效的操作
                                     List<CodeAction> validActions = codeActions.stream()
@@ -88,16 +88,16 @@ public final class AgentService {
                                             .collect(Collectors.toList());
                                     
                                     if (!validActions.isEmpty()) {
-                                        System.out.println("AgentService: 找到 " + validActions.size() + " 个有效的代码操作（共 " + codeActions.size() + " 个）");
+                                        System.out.println("EditService: 找到 " + validActions.size() + " 个有效的代码操作（共 " + codeActions.size() + " 个）");
                                         diffManager.handleCodeChanges(validActions);
                                     } else {
-                                        System.out.println("AgentService: 没有有效的代码操作需要处理（共 " + codeActions.size() + " 个操作，但都不有效）");
+                                        System.out.println("EditService: 没有有效的代码操作需要处理（共 " + codeActions.size() + " 个操作，但都不有效）");
                                     }
                                 } else {
-                                    System.out.println("AgentService: 没有代码操作需要处理");
+                                    System.out.println("EditService: 没有代码操作需要处理");
                                 }
                             } catch (Exception e) {
-                                System.err.println("AgentService: 处理代码变更时出错: " + e.getMessage());
+                                System.err.println("EditService: 处理代码变更时出错: " + e.getMessage());
                                 e.printStackTrace();
                             }
                         });
@@ -105,7 +105,7 @@ public final class AgentService {
                     })
                     .exceptionally(throwable -> {
                         // 处理 LLM 调用异常
-                        System.err.println("AgentService: LLM API 调用失败: " + throwable.getMessage());
+                        System.err.println("EditService: LLM API 调用失败: " + throwable.getMessage());
                         throwable.printStackTrace();
                         String errorMessage = "抱歉，调用 AI 模型时出现错误：" + throwable.getMessage() + 
                                            "\n\n请检查 API Key、API URL 和网络连接是否正常。";
@@ -113,7 +113,7 @@ public final class AgentService {
                     });
         } catch (Exception e) {
             // 处理 chatAsync 调用时的同步异常（如配置错误等）
-            System.err.println("AgentService: 启动 LLM API 调用失败: " + e.getMessage());
+            System.err.println("EditService: 启动 LLM API 调用失败: " + e.getMessage());
             e.printStackTrace();
             String errorMessage = "抱歉，启动 AI 模型调用时出现错误：" + e.getMessage() + 
                                "\n\n请检查 API Key、API URL 和网络连接是否正常。";
@@ -122,17 +122,17 @@ public final class AgentService {
     }
 
     /**
-     * 解析llm返回json为AgentResponse
+     * 解析llm返回json为EditResponse
      * @param response llm返回的json字符串
-     * @return 解析后的AgentResponse
+     * @return 解析后的EditResponse
      */
-    public AgentResponse parseLlmResponse(String response) {
+    public EditResponse parseLlmResponse(String response) {
 
         try {
-            System.out.println("解析LLM AGENT响应: " + response);
-            return GSON.fromJson(response, AgentResponse.class);
+            System.out.println("解析LLM EDIT响应: " + response);
+            return GSON.fromJson(response, EditResponse.class);
         } catch (JsonSyntaxException e) {
-            return new AgentResponse("无法解析大语言模型的响应: " + e.getMessage(), null, null);
+            return new EditResponse("无法解析大语言模型的响应: " + e.getMessage(), null, null);
         }
     }
     

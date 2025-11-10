@@ -11,12 +11,12 @@ import com.intellij.ui.components.JBScrollPane;
 import com.intellij.ui.components.JBTextArea;
 import com.intellij.util.ui.JBUI;
 import com.javaee.mypilot.core.enums.ChatOpt;
-import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.ChatMessage;
+import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.CodeReference;
-import com.javaee.mypilot.service.ManageService;
-import com.javaee.mypilot.service.AgentService;
 import com.javaee.mypilot.service.ConfigService;
+import com.javaee.mypilot.service.EditService;
+import com.javaee.mypilot.service.ManageService;
 
 import javax.swing.*;
 import java.awt.*;
@@ -91,7 +91,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         appendToChatHistory("• 在输入框输入问题，按 Enter 或点击发送\n");
         appendToChatHistory("• Shift+Enter 可以换行\n");
         appendToChatHistory("• 在底部选择 ASK 模式进行 RAG 问答\n");
-        appendToChatHistory("• 在底部选择 AGENT 模式进行代码辅助\n\n");
+        appendToChatHistory("• 在底部选择 EDIT 模式进行代码辅助\n\n");
     }
     
     /**
@@ -240,7 +240,7 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
         
         modeComboBox = new JComboBox<>(ChatOpt.values());
         modeComboBox.setSelectedItem(manageService.getCurrentOpt());
-        modeComboBox.setToolTipText("选择对话模式：ASK (RAG问答) 或 AGENT (代码助手)");
+        modeComboBox.setToolTipText("选择对话模式：ASK (RAG问答) 或 EDIT (代码助手)");
         modeComboBox.setPreferredSize(new Dimension(100, 25));
         modeComboBox.addActionListener(e -> {
             ChatOpt selectedOpt = (ChatOpt) modeComboBox.getSelectedItem();
@@ -1004,11 +1004,11 @@ public class ChatPanel extends JPanel implements PropertyChangeListener {
             // 重新启用发送按钮
             sendButton.setEnabled(true);
             
-            // 如果是AGENT模式，添加使用提示
-            if (manageService.getCurrentOpt() == ChatOpt.AGENT) {
+            // 如果是EDIT模式，添加使用提示
+            if (manageService.getCurrentOpt() == ChatOpt.EDIT) {
                 // 如果有代码更改，添加使用提示
-                AgentService agentService = project.getService(AgentService.class);
-                if (agentService != null && !agentService.getLastCodeActions().isEmpty()) {
+                EditService editService = project.getService(EditService.class);
+                if (editService != null && !editService.getLastCodeActions().isEmpty()) {
                     appendToChatHistory("💡 提示：已打开diff窗口显示代码更改建议。\n");
                 }
             }

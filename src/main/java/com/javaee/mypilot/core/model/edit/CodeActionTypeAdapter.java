@@ -1,4 +1,4 @@
-package com.javaee.mypilot.core.model.agent;
+package com.javaee.mypilot.core.model.edit;
 
 import com.google.gson.TypeAdapter;
 import com.google.gson.stream.JsonReader;

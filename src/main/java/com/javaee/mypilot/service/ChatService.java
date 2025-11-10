@@ -8,9 +8,9 @@ import com.javaee.mypilot.core.model.chat.ChatSession;
 import com.javaee.mypilot.core.model.chat.CodeContext;
 import com.javaee.mypilot.core.model.chat.CodeReference;
 import com.javaee.mypilot.infra.AppExecutors;
-import com.javaee.mypilot.infra.agent.PsiHandler;
 import com.javaee.mypilot.infra.chat.HistoryCompressor;
 import com.javaee.mypilot.infra.chat.TokenEvaluator;
+import com.javaee.mypilot.infra.edit.PsiHandler;
 import com.javaee.mypilot.infra.repo.IChatRepo;
 import com.javaee.mypilot.infra.repo.InMemChatRepo;
 import org.jetbrains.annotations.NotNull;
@@ -20,7 +20,7 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * 聊天服务类
- * 负责处理用户的聊天消息，管理聊天历史记录，并与RAG服务和Agent服务交互。
+ * 负责处理用户的聊天消息，管理聊天历史记录，并与RAG服务和Edit服务交互。
  */
 @Service(Service.Level.PROJECT)
 public final class ChatService {
@@ -29,7 +29,7 @@ public final class ChatService {
     private final HistoryCompressor historyCompressor;
     private final TokenEvaluator tokenEvaluator;
     private final RagService RagService;
-    private final AgentService agentService;
+    private final EditService editService;
     private final PsiHandler psiHandler;
     private final IChatRepo chatRepo;
     private final AppExecutors appExecutors;
@@ -39,7 +39,7 @@ public final class ChatService {
         this.historyCompressor = project.getService(HistoryCompressor.class);
         this.tokenEvaluator = project.getService(TokenEvaluator.class);
         this.RagService = project.getService(RagService.class);
-        this.agentService = project.getService(AgentService.class);
+        this.editService = project.getService(EditService.class);
         this.psiHandler = project.getService(PsiHandler.class);
         this.chatRepo = project.getService(InMemChatRepo.class);
         this.appExecutors = project.getService(AppExecutors.class);
@@ -200,7 +200,7 @@ public final class ChatService {
 
         CompletableFuture<ChatMessage> responseFuture = switch (chatOpt) {
                 case ASK -> RagService.handleRequestAsync(chatSession);
-                case AGENT -> agentService.handleRequestAsync(chatSession);
+                case EDIT -> editService.handleRequestAsync(chatSession);
         };
 
         // 任务 3B: 善后和保存

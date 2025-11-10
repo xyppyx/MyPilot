@@ -1,10 +1,10 @@
 package com.javaee.mypilot.infra.api;
 
 /**
- * agent prompt管理类，负责构建和管理与智能代理交互的提示信息。
+ * edit prompt管理类，负责构建和管理与智能代理交互的提示信息。
  * prompt组成: 系统/角色指令+代码上下文+聊天上下文+用户Message
  */
-public class AgentPrompt {
+public class EditPrompt {
 
     /**
      * 固定Prompt模板，定义了各个组成部分的结构和分隔符。
