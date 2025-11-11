@@ -23,7 +23,7 @@ public class RagPrompt {
 
         prompt.append("=".repeat(50)).append("\n\n");
         prompt.append("学生问题：").append(question).append("\n\n");
-        prompt.append("请基于以上课程材料回答问题。如果课程材料中没有相关信息，请说明并给出你的理解。");
+        prompt.append("请基于以上课程材料回答问题（不要用markdown格式，以纯文本回答）。如果课程材料中没有相关信息，请说明并给出你的理解。");
 
         return prompt.toString();
     }
@@ -33,7 +33,7 @@ public class RagPrompt {
      */
     public String buildGeneralPrompt(String question) {
         return "你是一个Java课程的教学助手。学生问题：" + question +
-                "\n\n注意：知识库中没有找到相关的课程材料，请基于你的通用知识回答这个问题。";
+                "\n\n注意：知识库中没有找到相关的课程材料，请基于你的通用知识回答这个问题（不要用markdown格式，以纯文本回答）。";
     }
 
     /**
@@ -63,7 +63,7 @@ public class RagPrompt {
         }
 
         prompt.append("学生问题：").append(question).append("\n\n");
-        prompt.append("请结合代码上下文和课程材料回答问题。");
+        prompt.append("请结合代码上下文和课程材料回答问题（不要用markdown格式，以纯文本回答）。");
 
         return prompt.toString();
     }
@@ -79,7 +79,7 @@ public class RagPrompt {
         prompt.append(codeContext).append("\n");
         prompt.append("```\n\n");
         prompt.append("学生问题：").append(question).append("\n\n");
-        prompt.append("注意：知识库中没有找到相关的课程材料，请结合代码上下文和你的通用知识回答这个问题。");
+        prompt.append("注意：知识库中没有找到相关的课程材料，请结合代码上下文和你的通用知识回答这个问题（不要用markdown格式，以纯文本回答）。");
 
         return prompt.toString();
     }
